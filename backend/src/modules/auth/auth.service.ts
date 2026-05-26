@@ -22,11 +22,13 @@ export class AuthService {
     return bcrypt.compare(password, hash);
   }
 
-  async validateLocalUser(email: string, password: string): Promise<User | null> {
+  async validateLocalUser(email: string, password: string): Promise<Omit<User, 'password'> | null> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.password) return null;
     const valid = await this.comparePassword(password, user.password);
-    return valid ? user : null;
+    if (!valid) return null;
+    const { password: _pw, ...safeUser } = user;
+    return safeUser;
   }
 
   async register(dto: RegisterDto): Promise<Omit<User, 'password'>> {
