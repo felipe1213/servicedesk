@@ -2,7 +2,10 @@ import NextAuth from 'next-auth';
 import AzureADProvider from 'next-auth/providers/azure-ad';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
+if (!process.env.NEXTAUTH_SECRET) throw new Error('NEXTAUTH_SECRET is required');
+
 const handler = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     AzureADProvider({
       clientId: process.env.ENTRA_CLIENT_ID!,
@@ -17,17 +20,22 @@ const handler = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: credentials.email,
-            password: credentials.password,
-          }),
-        });
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data;
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+        if (!apiUrl) throw new Error('NEXT_PUBLIC_API_URL is required');
+        try {
+          const res = await fetch(`${apiUrl}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+          if (!res.ok) return null;
+          return res.json();
+        } catch {
+          return null;
+        }
       },
     }),
   ],
@@ -37,7 +45,7 @@ const handler = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      (session as any).accessToken = token.accessToken;
+      session.accessToken = token.accessToken as string | undefined;
       return session;
     },
   },

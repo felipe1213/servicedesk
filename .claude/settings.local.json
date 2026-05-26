@@ -8,7 +8,18 @@
       "Bash(Test-Path *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\felip\\\\OneDrive\\\\Documents2\\\\dev\\\\claudecode\\\\servicedesk\")",
       "Bash(Select-Object Name)",
-      "PowerShell(New-Item *)"
+      "PowerShell(New-Item *)",
+      "Bash(ls frontend/src/)",
+      "Bash(ls frontend/src/app/)",
+      "Bash(Get-ChildItem *)",
+      "Bash(npx prisma *)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(Format-Table)",
+      "Bash(npx jest *)",
+      "Bash(npm install *)",
+      "PowerShell(npm *)",
+      "Bash(Select-Object -Property Name)",
+      "PowerShell(head *)"
     ]
   }
 }
