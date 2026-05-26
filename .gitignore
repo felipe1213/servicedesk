@@ -2,3 +2,8 @@
 node_modules/
 dist/
 .next/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
