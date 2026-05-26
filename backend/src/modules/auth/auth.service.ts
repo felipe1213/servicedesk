@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -70,13 +70,28 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  async refreshTokens(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+    try {
+      const payload = await this.jwt.verifyAsync<{ sub: string; email: string; role: string }>(
+        refreshToken,
+        { secret: this.config.get<string>('JWT_REFRESH_SECRET') },
+      );
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      if (!user) throw new UnauthorizedException('User not found');
+      return this.generateTokens(user);
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
   async findOrCreateEntraUser(profile: { oid: string; email: string; name: string }): Promise<User> {
     return this.prisma.user.upsert({
-      where: { email: profile.email },
-      update: {},
+      where: { entraOid: profile.oid },
+      update: { email: profile.email, name: profile.name },
       create: {
         name: profile.name,
         email: profile.email,
+        entraOid: profile.oid,
         authProvider: AuthProvider.ENTRA_ID,
         role: Role.END_USER,
       },

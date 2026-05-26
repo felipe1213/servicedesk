@@ -14,6 +14,7 @@ const mockJwt = { signAsync: jest.fn(), verifyAsync: jest.fn() };
 const mockConfig = { get: jest.fn((key: string) => {
   const map: Record<string, string> = {
     JWT_SECRET: 'test_secret',
+    JWT_REFRESH_SECRET: 'test_refresh_secret',
     JWT_ACCESS_EXPIRES_IN: '15m',
     JWT_REFRESH_EXPIRES_IN: '7d',
   };

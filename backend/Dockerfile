@@ -6,4 +6,4 @@ COPY . .
 RUN npx prisma generate
 RUN addgroup -S app && adduser -S app -G app
 USER app
-CMD ["npm", "run", "start:dev"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:dev"]

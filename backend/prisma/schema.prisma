@@ -54,6 +54,7 @@ model User {
   password             String?
   role                 Role            @default(END_USER)
   authProvider         AuthProvider    @default(LOCAL)
+  entraOid             String?         @unique
   teamId               String?
   team                 Team?           @relation(fields: [teamId], references: [id])
   createdTickets       Ticket[]        @relation("CreatedBy")
