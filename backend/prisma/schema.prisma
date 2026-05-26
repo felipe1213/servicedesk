@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  AGENT
+  END_USER
+}
+
+enum AuthProvider {
+  LOCAL
+  ENTRA_ID
+}
+
+enum TicketStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum Channel {
+  WEB
+  TEAMS
+  EMAIL
+}
+
+enum KbSource {
+  INTERNAL
+  SHAREPOINT
+  CONFLUENCE
+}
+
+model User {
+  id               String          @id @default(cuid())
+  name             String
+  email            String          @unique
+  password         String?
+  role             Role            @default(END_USER)
+  authProvider     AuthProvider    @default(LOCAL)
+  teamId           String?
+  team             Team?           @relation(fields: [teamId], references: [id])
+  createdTickets   Ticket[]        @relation("CreatedBy")
+  assignedTickets  Ticket[]        @relation("AssignedTo")
+  comments         Comment[]
+  auditLogs        AuditLog[]
+  attachments      Attachment[]
+  dashboardConfig  DashboardConfig?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model Team {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  users        User[]
+  tickets      Ticket[]
+  routingRules RoutingRule[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Ticket {
+  id                 String       @id @default(cuid())
+  title              String
+  description        String
+  status             TicketStatus @default(NEW)
+  priority           Priority     @default(MEDIUM)
+  category           String?
+  sourceChannel      Channel
+  createdById        String
+  createdBy          User         @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedToId       String?
+  assignedTo         User?        @relation("AssignedTo", fields: [assignedToId], references: [id])
+  teamId             String?
+  team               Team?        @relation(fields: [teamId], references: [id])
+  comments           Comment[]
+  auditLogs          AuditLog[]
+  attachments        Attachment[]
+  slaPolicyId        String?
+  slaPolicy          SlaPolicy?   @relation(fields: [slaPolicyId], references: [id])
+  slaBreached        Boolean      @default(false)
+  responseDeadline   DateTime?
+  resolutionDeadline DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id])
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  body       String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  actorId   String
+  actor     User     @relation(fields: [actorId], references: [id])
+  action    String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+}
+
+model SlaPolicy {
+  id                    String   @id @default(cuid())
+  name                  String
+  priorityLevel         Priority @unique
+  responseTimeMinutes   Int
+  resolutionTimeMinutes Int
+  tickets               Ticket[]
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model RoutingRule {
+  id              String   @id @default(cuid())
+  priorityOrder   Int
+  conditions      Json
+  assignToTeamId  String?
+  assignToTeam    Team?    @relation(fields: [assignToTeamId], references: [id])
+  assignToAgentId String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model KbArticle {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  source      KbSource @default(INTERNAL)
+  externalUrl String?
+  tags        String[]
+  viewCount   Int      @default(0)
+  authorId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id])
+  filename     String
+  mimeType     String
+  storagePath  String
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model DashboardConfig {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  role         Role
+  widgetLayout Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AppConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
