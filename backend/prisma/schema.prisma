@@ -48,22 +48,26 @@ enum KbSource {
 }
 
 model User {
-  id               String          @id @default(cuid())
-  name             String
-  email            String          @unique
-  password         String?
-  role             Role            @default(END_USER)
-  authProvider     AuthProvider    @default(LOCAL)
-  teamId           String?
-  team             Team?           @relation(fields: [teamId], references: [id])
-  createdTickets   Ticket[]        @relation("CreatedBy")
-  assignedTickets  Ticket[]        @relation("AssignedTo")
-  comments         Comment[]
-  auditLogs        AuditLog[]
-  attachments      Attachment[]
-  dashboardConfig  DashboardConfig?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                   String          @id @default(cuid())
+  name                 String
+  email                String          @unique
+  password             String?
+  role                 Role            @default(END_USER)
+  authProvider         AuthProvider    @default(LOCAL)
+  teamId               String?
+  team                 Team?           @relation(fields: [teamId], references: [id])
+  createdTickets       Ticket[]        @relation("CreatedBy")
+  assignedTickets      Ticket[]        @relation("AssignedTo")
+  comments             Comment[]
+  auditLogs            AuditLog[]
+  attachments          Attachment[]
+  dashboardConfig      DashboardConfig?
+  routingRulesAssigned RoutingRule[]   @relation("RoutingRuleAgent")
+  kbArticles           KbArticle[]     @relation("KbArticleAuthor")
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([teamId])
 }
 
 model Team {
@@ -100,6 +104,11 @@ model Ticket {
   resolutionDeadline DateTime?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([status, priority])
+  @@index([teamId])
 }
 
 model Comment {
@@ -112,6 +121,8 @@ model Comment {
   isInternal Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([ticketId])
 }
 
 model AuditLog {
@@ -124,6 +135,9 @@ model AuditLog {
   oldValue  String?
   newValue  String?
   createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([actorId])
 }
 
 model SlaPolicy {
@@ -144,6 +158,7 @@ model RoutingRule {
   assignToTeamId  String?
   assignToTeam    Team?    @relation(fields: [assignToTeamId], references: [id])
   assignToAgentId String?
+  assignToAgent   User?    @relation("RoutingRuleAgent", fields: [assignToAgentId], references: [id])
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -158,6 +173,7 @@ model KbArticle {
   tags        String[]
   viewCount   Int      @default(0)
   authorId    String?
+  author      User?    @relation("KbArticleAuthor", fields: [authorId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -172,6 +188,9 @@ model Attachment {
   uploadedById String
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([uploadedById])
 }
 
 model DashboardConfig {
