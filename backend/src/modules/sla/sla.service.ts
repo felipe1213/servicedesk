@@ -1,7 +1,7 @@
 // backend/src/modules/sla/sla.service.ts
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BreachAction, Priority } from '@prisma/client';
+import { BreachAction, Priority, TicketStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSlaPolicyDto } from './dto/create-sla-policy.dto';
 import { UpdateSlaPolicyDto } from './dto/update-sla-policy.dto';
@@ -46,7 +46,10 @@ export class SlaService {
     const policy = await this.prisma.slaPolicy.findUnique({
       where: { priorityLevel: ticket.priority },
     });
-    if (!policy) return;
+    if (!policy) {
+      this.logger.warn(`No SLA policy for priority ${ticket.priority}, skipping deadline stamp for ticket ${ticket.id}`);
+      return;
+    }
 
     const responseDeadline = new Date(
       ticket.createdAt.getTime() + policy.responseTimeMinutes * 60 * 1000,
@@ -68,6 +71,7 @@ export class SlaService {
       where: {
         slaBreached: false,
         slaPolicyId: { not: null },
+        status: { notIn: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
         OR: [
           { responseDeadline: { lt: now } },
           { resolutionDeadline: { lt: now } },
@@ -78,29 +82,31 @@ export class SlaService {
 
     for (const ticket of tickets) {
       try {
-        await this.prisma.ticket.update({
-          where: { id: ticket.id },
-          data: { slaBreached: true },
-        });
+        await this.prisma.$transaction(async (tx) => {
+          await tx.ticket.update({
+            where: { id: ticket.id },
+            data: { slaBreached: true },
+          });
 
-        await this.prisma.auditLog.create({
-          data: {
-            ticketId: ticket.id,
-            actorId: ticket.createdById,
-            action: 'SLA_BREACHED',
-            newValue: ticket.slaPolicy?.priorityLevel,
-          },
-        });
+          await tx.auditLog.create({
+            data: {
+              ticketId: ticket.id,
+              actorId: ticket.createdById,
+              action: 'SLA_BREACHED',
+              newValue: ticket.slaPolicy?.priorityLevel,
+            },
+          });
 
-        const policy = ticket.slaPolicy;
-        if (policy && (policy.breachAction === BreachAction.ESCALATE || policy.breachAction === BreachAction.BOTH)) {
-          const updateData: { assignedToId?: string; teamId?: string } = {};
-          if (policy.escalateToUserId) updateData.assignedToId = policy.escalateToUserId;
-          if (policy.escalateToTeamId) updateData.teamId = policy.escalateToTeamId;
-          if (Object.keys(updateData).length > 0) {
-            await this.prisma.ticket.update({ where: { id: ticket.id }, data: updateData });
+          const policy = ticket.slaPolicy;
+          if (policy && (policy.breachAction === BreachAction.ESCALATE || policy.breachAction === BreachAction.BOTH)) {
+            const updateData: { assignedToId?: string; teamId?: string } = {};
+            if (policy.escalateToUserId) updateData.assignedToId = policy.escalateToUserId;
+            if (policy.escalateToTeamId) updateData.teamId = policy.escalateToTeamId;
+            if (Object.keys(updateData).length > 0) {
+              await tx.ticket.update({ where: { id: ticket.id }, data: updateData });
+            }
           }
-        }
+        });
       } catch (err) {
         this.logger.error(`Failed to process breach for ticket ${ticket.id}`, err);
       }
