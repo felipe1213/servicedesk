@@ -118,6 +118,23 @@ Once all containers are healthy:
 
 The backend runs `prisma migrate deploy` automatically on startup — no manual migration step needed.
 
+### Creating the first admin user
+
+There is no seed file. Register a user through the API, then promote it to ADMIN via Postgres:
+
+```bash
+# 1. Register
+curl -s -X POST http://localhost:4000/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Admin","email":"admin@example.com","password":"yourpassword"}'
+
+# 2. Promote to ADMIN
+docker exec servicedesk-postgres-1 psql -U servicedesk -d servicedesk \
+  -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'admin@example.com';"
+```
+
+Log in at http://localhost:3000 with those credentials. Admin and Manager roles see the **Admin** link in the sidebar for managing routing rules and SLA policies.
+
 ---
 
 ## Environment Variables
@@ -185,7 +202,8 @@ Copy `.env.example` to `.env` and fill in the values below.
 |---|---|---|
 | `NEXTAUTH_URL` | Canonical URL of the Next.js app | `http://localhost:3000` |
 | `NEXTAUTH_SECRET` | Signs NextAuth JWTs — **must be set** | — |
-| `NEXT_PUBLIC_API_URL` | Backend URL used by the Next.js rewrite | `http://localhost:4000` |
+| `NEXT_PUBLIC_API_URL` | Backend URL used by the browser (Next.js rewrite source) | `http://localhost:4000` |
+| `BACKEND_URL` | Backend URL used server-side (NextAuth login call inside the container) | `http://backend:4000` |
 
 ---
 
