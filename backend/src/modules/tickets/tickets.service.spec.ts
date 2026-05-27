@@ -1,8 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Role, TicketStatus, Channel } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TicketsService } from './tickets.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SlaService } from '../sla/sla.service';
 
 const mockPrisma = {
   ticket: {
@@ -17,6 +19,9 @@ const mockPrisma = {
   comment: { create: jest.fn() },
 };
 
+const mockSlaService = { stampDeadlines: jest.fn() };
+const mockEventEmitter = { emit: jest.fn() };
+
 describe('TicketsService', () => {
   let service: TicketsService;
 
@@ -25,10 +30,14 @@ describe('TicketsService', () => {
       providers: [
         TicketsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: SlaService, useValue: mockSlaService },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
     service = module.get<TicketsService>(TicketsService);
     jest.clearAllMocks();
+    mockSlaService.stampDeadlines.mockResolvedValue(undefined);
+    mockEventEmitter.emit.mockReturnValue(true);
   });
 
   const agent = { id: 'agent-1', role: Role.AGENT };

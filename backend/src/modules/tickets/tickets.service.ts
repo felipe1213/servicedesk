@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SlaService } from '../sla/sla.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -16,7 +18,11 @@ const TICKET_INCLUDE = {
 
 @Injectable()
 export class TicketsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private slaService: SlaService,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   async create(dto: CreateTicketDto, userId: string) {
     const ticket = await this.prisma.ticket.create({
@@ -27,6 +33,14 @@ export class TicketsService {
     await this.prisma.auditLog.create({
       data: { ticketId: ticket.id, actorId: userId, action: 'CREATED', newValue: TicketStatus.NEW },
     });
+
+    await this.slaService.stampDeadlines({
+      id: ticket.id,
+      priority: ticket.priority,
+      createdAt: ticket.createdAt,
+    });
+
+    this.eventEmitter.emit('ticket.created', ticket);
 
     return ticket;
   }
