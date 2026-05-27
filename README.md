@@ -322,6 +322,25 @@ All routes are protected by a global `JwtAuthGuard`. Endpoints decorated with `@
 |---|---|---|
 | GET | `/users/agents` | Returns `{ id, name, email }` for all agent-or-above users — used to populate assignee dropdowns. `END_USER` role receives 403. |
 
+### Routing Rules endpoints (ADMIN or MANAGER only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/routing-rules` | List all rules ordered by priorityOrder |
+| POST | `/routing-rules` | Create a routing rule |
+| PATCH | `/routing-rules/reorder` | Bulk-update rule order |
+| PATCH | `/routing-rules/:id` | Update a routing rule |
+| DELETE | `/routing-rules/:id` | Delete a routing rule |
+
+### SLA Policy endpoints (ADMIN only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/sla-policies` | List all SLA policies |
+| POST | `/sla-policies` | Create an SLA policy |
+| PATCH | `/sla-policies/:id` | Update an SLA policy |
+| DELETE | `/sla-policies/:id` | Delete an SLA policy |
+
 `sourceChannel` must be one of `WEB`, `TEAMS`, `EMAIL`.  
 `priority` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` (defaults to `MEDIUM`).  
 `status` must be one of `NEW`, `ASSIGNED`, `IN_PROGRESS`, `PENDING`, `RESOLVED`, `CLOSED`.
@@ -427,7 +446,7 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 | Phase 1 | Foundation — Docker Compose, Prisma schema, Auth module (local + Entra ID), RBAC | ✅ Complete |
 | Phase 2 | Tickets module — full CRUD, state machine, comments, audit log; web portal UI (dashboard, ticket list, detail, new ticket form) | ✅ Complete |
 | Phase 2 (completion) | Filter + search on ticket list, agent assignment UI, file attachments (MinIO), backend + frontend unit tests | ✅ Complete |
-| Phase 3 | Routing rules engine, SLA policies, breach detection, escalation triggers | 🔜 Planned |
+| Phase 3 | Routing rules engine, SLA policies, breach detection, configurable escalation, admin UI | ✅ Complete |
 | Phase 4 | Knowledge base — internal authoring, SharePoint/Confluence connectors, Elasticsearch search | 🔜 Planned |
 | Phase 5 | Notifications (Teams, email), manager dashboard widgets, Teams bot, email-to-ticket via Microsoft Graph | 🔜 Planned |
 
