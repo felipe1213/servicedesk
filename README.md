@@ -202,13 +202,23 @@ servicedesk/
 │   │   ├── app.module.ts       # Root module — global guards registered here
 │   │   ├── prisma/             # PrismaModule (@Global) + PrismaService
 │   │   └── modules/
-│   │       └── auth/           # Auth module (Plan 1)
-│   │           ├── strategies/ # passport-local, passport-jwt
-│   │           ├── guards/     # JwtAuthGuard, LocalAuthGuard, RolesGuard
-│   │           ├── decorators/ # @Public(), @Roles()
-│   │           ├── dto/        # LoginDto, RegisterDto (class-validator)
-│   │           ├── auth.service.ts
-│   │           └── auth.controller.ts
+│   │       ├── auth/           # Auth module (Phase 1)
+│   │       │   ├── strategies/ # passport-local, passport-jwt
+│   │       │   ├── guards/     # JwtAuthGuard, LocalAuthGuard, RolesGuard
+│   │       │   ├── decorators/ # @Public(), @Roles()
+│   │       │   ├── dto/        # LoginDto, RegisterDto (class-validator)
+│   │       │   ├── auth.service.ts
+│   │       │   └── auth.controller.ts
+│   │       ├── tickets/        # Tickets module (Phase 2)
+│   │       │   ├── dto/        # CreateTicketDto, UpdateTicketDto, CreateCommentDto, FindTicketsQueryDto
+│   │       │   ├── tickets.service.ts
+│   │       │   └── tickets.controller.ts
+│   │       ├── attachments/    # File attachments — MinIO wrapper (Phase 2 completion)
+│   │       │   ├── attachments.service.ts
+│   │       │   └── attachments.controller.ts
+│   │       └── users/          # Agent list endpoint (Phase 2 completion)
+│   │           ├── users.service.ts
+│   │           └── users.controller.ts
 │   ├── Dockerfile
 │   ├── nest-cli.json
 │   ├── tsconfig.json
@@ -217,17 +227,23 @@ servicedesk/
 ├── frontend/                   # Next.js 14 App Router
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── layout.tsx
+│   │   │   ├── layout.tsx      # Root layout with SessionProvider
 │   │   │   ├── page.tsx        # Landing / redirect
 │   │   │   ├── auth/login/     # Login page
-│   │   │   └── api/auth/[...nextauth]/  # NextAuth route handler
+│   │   │   ├── api/auth/[...nextauth]/  # NextAuth route handler
+│   │   │   └── (app)/          # Authenticated route group (Phase 2)
+│   │   │       ├── layout.tsx  # Sidebar nav layout
+│   │   │       ├── dashboard/  # Stats overview
+│   │   │       └── tickets/    # Ticket list, new ticket, ticket detail
+│   │   ├── components/
+│   │   │   └── session-provider.tsx  # Client wrapper for NextAuth SessionProvider
 │   │   ├── lib/
 │   │   │   └── api.ts          # Axios instance (baseURL: /api/backend)
 │   │   ├── middleware.ts        # Route protection (/dashboard, /tickets, /admin)
 │   │   └── types/
 │   │       ├── auth.ts         # Shared auth types
 │   │       └── next-auth.d.ts  # Session type augmentation (accessToken)
-│   ├── next.config.ts          # Rewrite /api/backend/* → NestJS
+│   ├── next.config.js          # Rewrite /api/backend/* → NestJS
 │   ├── jest.config.ts
 │   ├── Dockerfile
 │   └── package.json
@@ -287,7 +303,30 @@ All routes are protected by a global `JwtAuthGuard`. Endpoints decorated with `@
 |---|---|---|
 | GET | `/auth/me` | Returns the authenticated user's profile |
 
-All protected endpoints require `Authorization: Bearer <accessToken>` in the request header. The frontend injects this automatically via an Axios request interceptor.
+### Ticket endpoints (all protected — require Bearer token)
+
+| Method | Path | Body / Notes | Response |
+|---|---|---|---|
+| POST | `/tickets` | `{ title, description, priority?, category?, sourceChannel }` | Created ticket |
+| GET | `/tickets` | Query: `status?`, `priority?`, `search?`, `page?`, `limit?` — role-filtered | `{ data, total, page, limit }` |
+| GET | `/tickets/stats` | — | `{ total, byStatus, byPriority }` |
+| GET | `/tickets/:id` | — Internal comments filtered for end users | Full ticket with comments + audit log |
+| PATCH | `/tickets/:id` | Any subset of `{ title, description, priority, category, status, assignedToId }` | Updated ticket |
+| POST | `/tickets/:id/comments` | `{ body, isInternal? }` — `isInternal` ignored for end users | Created comment |
+| GET | `/tickets/:id/attachments` | — | Attachment list with presigned download URLs |
+| POST | `/tickets/:id/attachments` | Multipart file upload, max 10 MB | Created attachment record |
+
+### User endpoints (protected)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/users/agents` | Returns `{ id, name, email }` for all agent-or-above users — used to populate assignee dropdowns. `END_USER` role receives 403. |
+
+`sourceChannel` must be one of `WEB`, `TEAMS`, `EMAIL`.  
+`priority` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` (defaults to `MEDIUM`).  
+`status` must be one of `NEW`, `ASSIGNED`, `IN_PROGRESS`, `PENDING`, `RESOLVED`, `CLOSED`.
+
+All protected endpoints require `Authorization: Bearer <accessToken>` in the request header.
 
 Rate limiting is applied globally at 10 requests per minute per IP via `@nestjs/throttler`.
 
@@ -381,16 +420,16 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 
 ---
 
-## Planned Features
+## Build Status
 
-The foundation (Plan 1 — Auth, Prisma schema, Docker Compose) is complete. Upcoming plans:
-
-| Plan | Scope |
-|---|---|
-| Plan 2 | Tickets module — full CRUD, state machine, comments, audit log, attachments |
-| Plan 3 | Routing rules engine, SLA policies, breach detection, escalation triggers |
-| Plan 4 | Knowledge base — internal authoring, SharePoint/Confluence connectors, Elasticsearch search |
-| Plan 5 | Notifications (Teams, email), manager dashboard, Teams bot, email-to-ticket via Microsoft Graph |
+| Phase | Scope | Status |
+|---|---|---|
+| Phase 1 | Foundation — Docker Compose, Prisma schema, Auth module (local + Entra ID), RBAC | ✅ Complete |
+| Phase 2 | Tickets module — full CRUD, state machine, comments, audit log; web portal UI (dashboard, ticket list, detail, new ticket form) | ✅ Complete |
+| Phase 2 (completion) | Filter + search on ticket list, agent assignment UI, file attachments (MinIO), backend + frontend unit tests | 🔨 In Progress |
+| Phase 3 | Routing rules engine, SLA policies, breach detection, escalation triggers | 🔜 Planned |
+| Phase 4 | Knowledge base — internal authoring, SharePoint/Confluence connectors, Elasticsearch search | 🔜 Planned |
+| Phase 5 | Notifications (Teams, email), manager dashboard widgets, Teams bot, email-to-ticket via Microsoft Graph | 🔜 Planned |
 
 ---
 
