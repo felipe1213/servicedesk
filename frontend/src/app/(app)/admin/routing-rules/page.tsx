@@ -17,7 +17,7 @@ const OPERATORS: Record<string, string[]> = {
   category: ['eq'], channel: ['eq'], keyword: ['contains'],
 };
 const emptyCondition = (): Condition => ({ field: 'category', operator: 'eq', value: '' });
-const emptyForm = () => ({ priorityOrder: 1, conditions: [emptyCondition()], assignToAgentId: '', assignToTeamId: '', isActive: true });
+const emptyForm = () => ({ priorityOrder: 1, conditions: [emptyCondition()], assignToAgentId: '', isActive: true });
 
 export default function RoutingRulesPage() {
   const { data: session } = useSession();
@@ -27,19 +27,27 @@ export default function RoutingRulesPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${(session as any)?.accessToken}` };
   }
 
   async function load() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    const [rRes, aRes] = await Promise.all([
-      fetch(`${apiUrl}/routing-rules`, { headers: authHeaders() }),
-      fetch(`${apiUrl}/users/agents`, { headers: authHeaders() }),
-    ]);
-    if (rRes.ok) setRules(await rRes.json());
-    if (aRes.ok) setAgents(await aRes.json());
+    setLoading(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const [rRes, aRes] = await Promise.all([
+        fetch(`${apiUrl}/routing-rules`, { headers: authHeaders() }),
+        fetch(`${apiUrl}/users/agents`, { headers: authHeaders() }),
+      ]);
+      if (rRes.ok) setRules(await rRes.json());
+      if (aRes.ok) setAgents(await aRes.json());
+    } catch {
+      setError('Failed to load routing rules.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { if (session) load(); }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -86,7 +94,6 @@ export default function RoutingRulesPage() {
       priorityOrder: rule.priorityOrder,
       conditions: rule.conditions.length > 0 ? rule.conditions : [emptyCondition()],
       assignToAgentId: rule.assignToAgentId ?? '',
-      assignToTeamId: rule.assignToTeamId ?? '',
       isActive: rule.isActive,
     });
     setShowForm(true);
@@ -100,7 +107,6 @@ export default function RoutingRulesPage() {
       priorityOrder: form.priorityOrder,
       conditions: form.conditions,
       assignToAgentId: form.assignToAgentId || undefined,
-      assignToTeamId: form.assignToTeamId || undefined,
       isActive: form.isActive,
     };
     const url = editId
@@ -200,6 +206,9 @@ export default function RoutingRulesPage() {
           </button>
         </form>
       )}
+
+      {error && <p style={{ color: '#ef4444' }}>{error}</p>}
+      {loading && <p style={{ color: '#64748b' }}>Loading…</p>}
 
       {sorted.length === 0 ? (
         <div style={{ color: '#64748b', textAlign: 'center', padding: 40 }}>No routing rules yet.</div>

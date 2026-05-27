@@ -17,7 +17,7 @@ const PRIORITY_COLOR: Record<string, string> = { CRITICAL: '#ef4444', HIGH: '#f9
 const emptyForm = (priority: string) => ({
   name: `${priority} SLA`, priorityLevel: priority,
   responseTimeMinutes: 60, resolutionTimeMinutes: 480,
-  breachAction: 'FLAG', escalateToUserId: '', escalateToTeamId: '',
+  breachAction: 'FLAG', escalateToUserId: '',
 });
 
 export default function SlaPoliciesPage() {
@@ -27,19 +27,27 @@ export default function SlaPoliciesPage() {
   const [editPriority, setEditPriority] = useState<string | null>(null);
   const [form, setForm] = useState<ReturnType<typeof emptyForm> | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${(session as any)?.accessToken}` };
   }
 
   async function load() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    const [pRes, aRes] = await Promise.all([
-      fetch(`${apiUrl}/sla-policies`, { headers: authHeaders() }),
-      fetch(`${apiUrl}/users/agents`, { headers: authHeaders() }),
-    ]);
-    if (pRes.ok) setPolicies(await pRes.json());
-    if (aRes.ok) setAgents(await aRes.json());
+    setLoading(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const [pRes, aRes] = await Promise.all([
+        fetch(`${apiUrl}/sla-policies`, { headers: authHeaders() }),
+        fetch(`${apiUrl}/users/agents`, { headers: authHeaders() }),
+      ]);
+      if (pRes.ok) setPolicies(await pRes.json());
+      if (aRes.ok) setAgents(await aRes.json());
+    } catch {
+      setError('Failed to load SLA policies.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { if (session) load(); }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -48,7 +56,7 @@ export default function SlaPoliciesPage() {
     const existing = policies.find(p => p.priorityLevel === priority);
     setEditPriority(priority);
     setForm(existing
-      ? { name: existing.name, priorityLevel: existing.priorityLevel, responseTimeMinutes: existing.responseTimeMinutes, resolutionTimeMinutes: existing.resolutionTimeMinutes, breachAction: existing.breachAction, escalateToUserId: existing.escalateToUserId ?? '', escalateToTeamId: existing.escalateToTeamId ?? '' }
+      ? { name: existing.name, priorityLevel: existing.priorityLevel, responseTimeMinutes: existing.responseTimeMinutes, resolutionTimeMinutes: existing.resolutionTimeMinutes, breachAction: existing.breachAction, escalateToUserId: existing.escalateToUserId ?? '' }
       : emptyForm(priority));
     setError('');
   }
@@ -61,7 +69,6 @@ export default function SlaPoliciesPage() {
     const body = {
       ...form,
       escalateToUserId: form.escalateToUserId || undefined,
-      escalateToTeamId: form.escalateToTeamId || undefined,
     };
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     const url = existing ? `${apiUrl}/sla-policies/${existing.id}` : `${apiUrl}/sla-policies`;
@@ -79,6 +86,9 @@ export default function SlaPoliciesPage() {
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>SLA Policies</h1>
       <p style={{ color: '#64748b', marginBottom: 24 }}>Configure response and resolution deadlines per priority level.</p>
+
+      {error && <p style={{ color: '#ef4444' }}>{error}</p>}
+      {loading && <p style={{ color: '#64748b' }}>Loading…</p>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {PRIORITIES.map(priority => {
