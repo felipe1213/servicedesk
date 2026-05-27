@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -47,6 +48,12 @@ enum KbSource {
   CONFLUENCE
 }
 
+enum BreachAction {
+  FLAG
+  ESCALATE
+  BOTH
+}
+
 model User {
   id                   String          @id @default(cuid())
   name                 String
@@ -65,6 +72,7 @@ model User {
   dashboardConfig      DashboardConfig?
   routingRulesAssigned RoutingRule[]   @relation("RoutingRuleAgent")
   kbArticles           KbArticle[]     @relation("KbArticleAuthor")
+  slaPoliciesEscalateUser SlaPolicy[] @relation("SlaEscalateToUser")
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
@@ -77,6 +85,7 @@ model Team {
   users        User[]
   tickets      Ticket[]
   routingRules RoutingRule[]
+  slaPoliciesEscalateTeam SlaPolicy[] @relation("SlaEscalateToTeam")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -142,14 +151,19 @@ model AuditLog {
 }
 
 model SlaPolicy {
-  id                    String   @id @default(cuid())
+  id                    String        @id @default(cuid())
   name                  String
-  priorityLevel         Priority @unique
+  priorityLevel         Priority      @unique
   responseTimeMinutes   Int
   resolutionTimeMinutes Int
+  breachAction          BreachAction  @default(FLAG)
+  escalateToUserId      String?
+  escalateToUser        User?         @relation("SlaEscalateToUser", fields: [escalateToUserId], references: [id])
+  escalateToTeamId      String?
+  escalateToTeam        Team?         @relation("SlaEscalateToTeam", fields: [escalateToTeamId], references: [id])
   tickets               Ticket[]
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 }
 
 model RoutingRule {
