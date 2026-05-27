@@ -10,7 +10,7 @@ import { TicketsModule } from './modules/tickets/tickets.module';
 import { UsersModule } from './modules/users/users.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { SlaModule } from './modules/sla/sla.module';
-// import { RoutingModule } from './modules/routing/routing.module';  // TODO: uncomment in Task 7
+import { RoutingModule } from './modules/routing/routing.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 
@@ -26,7 +26,7 @@ import { RolesGuard } from './modules/auth/guards/roles.guard';
     UsersModule,
     AttachmentsModule,
     SlaModule,
-    // RoutingModule,  // TODO: uncomment in Task 7
+    RoutingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
