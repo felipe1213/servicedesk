@@ -426,7 +426,7 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 |---|---|---|
 | Phase 1 | Foundation — Docker Compose, Prisma schema, Auth module (local + Entra ID), RBAC | ✅ Complete |
 | Phase 2 | Tickets module — full CRUD, state machine, comments, audit log; web portal UI (dashboard, ticket list, detail, new ticket form) | ✅ Complete |
-| Phase 2 (completion) | Filter + search on ticket list, agent assignment UI, file attachments (MinIO), backend + frontend unit tests | 🔨 In Progress |
+| Phase 2 (completion) | Filter + search on ticket list, agent assignment UI, file attachments (MinIO), backend + frontend unit tests | ✅ Complete |
 | Phase 3 | Routing rules engine, SLA policies, breach detection, escalation triggers | 🔜 Planned |
 | Phase 4 | Knowledge base — internal authoring, SharePoint/Confluence connectors, Elasticsearch search | 🔜 Planned |
 | Phase 5 | Notifications (Teams, email), manager dashboard widgets, Teams bot, email-to-ticket via Microsoft Graph | 🔜 Planned |
