@@ -7,3 +7,5 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+.superpowers/
+*.tsbuildinfo

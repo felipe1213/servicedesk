@@ -20,8 +20,8 @@ const handler = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-        if (!apiUrl) throw new Error('NEXT_PUBLIC_API_URL is required');
+        const apiUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL;
+        if (!apiUrl) throw new Error('BACKEND_URL or NEXT_PUBLIC_API_URL is required');
         try {
           const res = await fetch(`${apiUrl}/auth/login`, {
             method: 'POST',
