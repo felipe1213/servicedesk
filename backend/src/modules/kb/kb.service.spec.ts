@@ -214,4 +214,43 @@ describe('KbService', () => {
       await expect(service.suggest('bad')).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('deflect', () => {
+    const agent: RequestUser = { id: 'agent-1', role: Role.AGENT };
+    const endUser: RequestUser = { id: 'user-1', role: Role.END_USER };
+
+    it('AGENT type calls TicketsService.update() with RESOLVED status', async () => {
+      mockPrisma.kbArticle.findUnique.mockResolvedValue({ id: 'art-1' });
+      mockPrisma.ticket.findUnique.mockResolvedValue({ id: 't-1', createdById: 'user-1' });
+      mockPrisma.kbDeflection.create.mockResolvedValue({ id: 'def-1' });
+      mockTicketsService.update.mockResolvedValue({});
+
+      await service.deflect('art-1', 't-1', DeflectionType.AGENT, agent);
+
+      expect(mockTicketsService.update).toHaveBeenCalledWith(
+        't-1',
+        { status: TicketStatus.RESOLVED },
+        agent,
+      );
+    });
+
+    it('END_USER type does not call TicketsService.update()', async () => {
+      mockPrisma.kbArticle.findUnique.mockResolvedValue({ id: 'art-1' });
+      mockPrisma.ticket.findUnique.mockResolvedValue({ id: 't-1', createdById: 'user-1' });
+      mockPrisma.kbDeflection.create.mockResolvedValue({ id: 'def-1' });
+
+      await service.deflect('art-1', 't-1', DeflectionType.END_USER, endUser);
+
+      expect(mockTicketsService.update).not.toHaveBeenCalled();
+    });
+
+    it('END_USER with mismatched ticket.createdById throws ForbiddenException', async () => {
+      mockPrisma.kbArticle.findUnique.mockResolvedValue({ id: 'art-1' });
+      mockPrisma.ticket.findUnique.mockResolvedValue({ id: 't-1', createdById: 'other-user' });
+
+      await expect(
+        service.deflect('art-1', 't-1', DeflectionType.END_USER, endUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });

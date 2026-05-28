@@ -203,4 +203,36 @@ export class KbService implements OnModuleInit {
       slug: hit._source.slug as string,
     }));
   }
+
+  async deflect(
+    articleId: string,
+    ticketId: string | undefined,
+    type: DeflectionType,
+    user: RequestUser,
+  ) {
+    const article = await this.prisma.kbArticle.findUnique({ where: { id: articleId } });
+    if (!article) throw new NotFoundException(`Article ${articleId} not found`);
+
+    if (ticketId) {
+      const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket) throw new NotFoundException(`Ticket ${ticketId} not found`);
+      if (type === DeflectionType.END_USER && ticket.createdById !== user.id) {
+        throw new ForbiddenException('Cannot deflect a ticket you did not create');
+      }
+    }
+
+    const deflection = await this.prisma.kbDeflection.create({
+      data: { articleId, ticketId, type },
+    });
+
+    if (type === DeflectionType.AGENT && ticketId) {
+      try {
+        await this.ticketsService.update(ticketId, { status: TicketStatus.RESOLVED }, user);
+      } catch (e) {
+        this.logger.warn(`Could not resolve ticket ${ticketId}: ${(e as Error).message}`);
+      }
+    }
+
+    return deflection;
+  }
 }
