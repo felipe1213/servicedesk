@@ -39,7 +39,7 @@ export class ConfluenceService {
     for (let i = 0; i < retries; i++) {
       const res = await fetch(url, {
         ...options,
-        headers: { Authorization: auth, 'Content-Type': 'application/json', ...(options?.headers as Record<string, string> ?? {}) },
+        headers: { Authorization: auth, ...(options?.headers as Record<string, string> ?? {}) },
       });
       if (res.status !== 429) return res;
       const after = parseInt(res.headers.get('retry-after') ?? '5', 10);
@@ -72,16 +72,18 @@ export class ConfluenceService {
       const items: ExternalItem[] = [];
 
       if (config.syncType === 'space') {
-        const res = await this.fetchWithRetry(
-          `${config.baseUrl}/wiki/rest/api/content?spaceKey=${config.spaceKey}&type=page&status=current&expand=body.storage,version`,
-          auth,
-        );
-        const data = await res.json() as { results: any[] };
-        for (const p of (data.results ?? [])) {
-          items.push({ id: p.id, title: p.title, body: p.body?.storage?.value ?? '', version: String(p.version?.number ?? 0), webUrl: `${config.baseUrl}/wiki${p._links?.webui ?? ''}` });
+        let url: string | null = `${config.baseUrl}/wiki/rest/api/content?spaceKey=${config.spaceKey}&type=page&status=current&expand=body.storage,version&limit=50`;
+        while (url) {
+          const res = await this.fetchWithRetry(url, auth);
+          const data = await res.json() as { results: any[]; _links?: { next?: string } };
+          for (const p of (data.results ?? [])) {
+            items.push({ id: p.id, title: p.title, body: p.body?.storage?.value ?? '', version: String(p.version?.number ?? 0), webUrl: `${config.baseUrl}/wiki${p._links?.webui ?? ''}` });
+          }
+          url = data._links?.next ? `${config.baseUrl}${data._links.next}` : null;
         }
       } else {
-        const pages = await this.fetchDescendants(config, auth, config.rootPageId!);
+        if (!config.rootPageId) throw new Error('rootPageId is required for pagetree sync mode');
+        const pages = await this.fetchDescendants(config, auth, config.rootPageId);
         items.push(...pages);
       }
 
@@ -110,16 +112,19 @@ export class ConfluenceService {
   }
 
   private async fetchDescendants(config: ConfluenceConfig, auth: string, rootPageId: string): Promise<ExternalItem[]> {
-    const res = await this.fetchWithRetry(
-      `${config.baseUrl}/wiki/rest/api/content/${rootPageId}/descendant/page?expand=body.storage,version`,
-      auth,
-    );
-    const data = await res.json() as { results: any[] };
-    return (data.results ?? []).map((p: any) => ({
-      id: p.id, title: p.title, body: p.body?.storage?.value ?? '',
-      version: String(p.version?.number ?? 0),
-      webUrl: `${config.baseUrl}/wiki${p._links?.webui ?? ''}`,
-    }));
+    const items: ExternalItem[] = [];
+    let url: string | null = `${config.baseUrl}/wiki/rest/api/content/${rootPageId}/descendant/page?expand=body.storage,version&limit=50`;
+    while (url) {
+      const res = await this.fetchWithRetry(url, auth);
+      const data = await res.json() as { results: any[]; _links?: { next?: string } };
+      items.push(...(data.results ?? []).map((p: any) => ({
+        id: p.id, title: p.title, body: p.body?.storage?.value ?? '',
+        version: String(p.version?.number ?? 0),
+        webUrl: `${config.baseUrl}/wiki${p._links?.webui ?? ''}`,
+      })));
+      url = data._links?.next ? `${config.baseUrl}${data._links.next}` : null;
+    }
+    return items;
   }
 
   async upsertArticle(item: ExternalItem, log: LogRef): Promise<void> {
@@ -180,7 +185,8 @@ export class ConfluenceService {
       auth,
       {
         method: 'PUT',
-        body: JSON.stringify({ version: { number: currentVersion + 1 }, body: { storage: { value: html, representation: 'storage' } } }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: { number: currentVersion + 1 }, title: article.title, type: 'page', body: { storage: { value: html, representation: 'storage' } } }),
       },
     );
     if (!res.ok) { this.logger.warn(`Confluence push failed for article ${article.id}: ${res.status}`); return; }
@@ -202,6 +208,7 @@ export class ConfluenceService {
       auth,
       {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'page',
           title: article.title,
