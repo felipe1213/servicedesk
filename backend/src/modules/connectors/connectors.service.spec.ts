@@ -115,3 +115,86 @@ describe('ContentConverterService', () => {
     expect(result).not.toContain('ac:structured-macro');
   });
 });
+
+// ---------- SharePointService ----------
+
+import { SharePointService } from './sharepoint.service';
+import { KbArticleStatus, KbSource } from '@prisma/client';
+
+const mockKbService = { indexArticle: jest.fn() };
+
+function makeSpPrisma(existing: any) {
+  return {
+    kbArticle: {
+      findFirst: jest.fn().mockResolvedValue(existing),
+      create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'new-id', ...data })),
+      update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: existing?.id ?? 'x', status: KbArticleStatus.PUBLISHED, ...data })),
+    },
+    kbSyncLog: { update: jest.fn().mockResolvedValue({}) },
+  };
+}
+
+function makeSpService(prisma: any) {
+  return new (SharePointService as any)(
+    prisma,
+    mockKbService,
+    { getConfig: jest.fn(), encrypt: jest.fn(), decrypt: jest.fn() },
+    new ContentConverterService(),
+  );
+}
+
+const remoteItem = { id: 'ext-1', title: 'Test Page', body: '<p>Hello</p>', version: 'etag-v2', webUrl: 'https://sp.example.com/page' };
+const logRef = { id: 'log-1', articlesNew: 0, articlesUpdated: 0, conflicts: 0 };
+
+describe('SharePointService.upsertArticle()', () => {
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  it('creates new article when externalId not found', async () => {
+    const prisma = makeSpPrisma(null);
+    prisma.kbArticle.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'new-id', status: KbArticleStatus.PUBLISHED, title: 'Test Page', body: '# Hello', tags: [], slug: 'test', publishedAt: new Date() });
+    const svc = makeSpService(prisma);
+    const log = { ...logRef };
+    await svc.upsertArticle(remoteItem, log);
+    expect(prisma.kbArticle.create).toHaveBeenCalled();
+    expect(mockKbService.indexArticle).toHaveBeenCalled();
+    expect(log.articlesNew).toBe(1);
+  });
+
+  it('skips when externalVersion matches', async () => {
+    const existing = { id: 'art-1', externalId: 'ext-1', externalVersion: 'etag-v2', updatedAt: new Date(), lastSyncedAt: new Date() };
+    const prisma = makeSpPrisma(existing);
+    const svc = makeSpService(prisma);
+    const log = { ...logRef };
+    await svc.upsertArticle(remoteItem, log);
+    expect(prisma.kbArticle.update).not.toHaveBeenCalled();
+    expect(log.articlesUpdated).toBe(0);
+  });
+
+  it('updates article when remote changed and no local edits', async () => {
+    const lastSyncedAt = new Date(Date.now() - 10000);
+    const updatedAt = new Date(Date.now() - 20000); // updatedAt < lastSyncedAt → no local edits
+    const existing = { id: 'art-1', externalId: 'ext-1', externalVersion: 'etag-v1', status: KbArticleStatus.PUBLISHED, updatedAt, lastSyncedAt };
+    const prisma = makeSpPrisma(existing);
+    const svc = makeSpService(prisma);
+    const log = { ...logRef };
+    await svc.upsertArticle(remoteItem, log);
+    expect(prisma.kbArticle.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ externalVersion: 'etag-v2' }),
+    }));
+    expect(log.articlesUpdated).toBe(1);
+  });
+
+  it('sets syncConflict when both sides edited', async () => {
+    const lastSyncedAt = new Date(Date.now() - 10000);
+    const updatedAt = new Date(Date.now() - 5000); // updatedAt > lastSyncedAt → local edit
+    const existing = { id: 'art-1', externalId: 'ext-1', externalVersion: 'etag-v1', updatedAt, lastSyncedAt };
+    const prisma = makeSpPrisma(existing);
+    const svc = makeSpService(prisma);
+    const log = { ...logRef };
+    await svc.upsertArticle(remoteItem, log);
+    expect(prisma.kbArticle.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ syncConflict: true }),
+    }));
+    expect(log.conflicts).toBe(1);
+  });
+});
