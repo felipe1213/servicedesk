@@ -155,4 +155,52 @@ export class KbService implements OnModuleInit {
     await this.prisma.kbArticle.delete({ where: { id } });
     await this.removeFromIndex(id);
   }
+
+  async search(q: string) {
+    try {
+      const result = await this.es.search({
+        index: ES_INDEX,
+        query: {
+          multi_match: {
+            query: q,
+            fields: ['title^3', 'body', 'tags'],
+          },
+        },
+      });
+      return (result.hits.hits as Array<{ _id: string; _source: Record<string, any> }>).map(hit => ({
+        id: hit._id,
+        title: hit._source.title as string,
+        slug: hit._source.slug as string,
+        tags: hit._source.tags as string[],
+        excerpt: (hit._source.body as string).slice(0, 200),
+      }));
+    } catch {
+      throw new ServiceUnavailableException('Search unavailable');
+    }
+  }
+
+  async suggest(ticketId: string) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException(`Ticket ${ticketId} not found`);
+
+    const likeText = `${ticket.title} ${ticket.description}`;
+    const result = await this.es.search({
+      index: ES_INDEX,
+      query: {
+        more_like_this: {
+          fields: ['title', 'body'],
+          like: likeText,
+          min_term_freq: 1,
+          min_doc_freq: 1,
+        },
+      },
+      size: 5,
+      _source: ['title', 'slug'],
+    });
+    return (result.hits.hits as Array<{ _id: string; _source: Record<string, any> }>).map(hit => ({
+      id: hit._id,
+      title: hit._source.title as string,
+      slug: hit._source.slug as string,
+    }));
+  }
 }

@@ -149,4 +149,69 @@ describe('KbService', () => {
       expect(mockEs.delete).toHaveBeenCalledWith({ index: 'kb_articles', id: 'art-1' });
     });
   });
+
+  describe('search', () => {
+    it('calls ES multi-match query with title boost and returns mapped hits', async () => {
+      mockEs.search.mockResolvedValue({
+        hits: {
+          hits: [
+            { _id: 'art-1', _source: { title: 'Login Guide', slug: 'login-guide', tags: ['auth'], body: 'How to log in to the system' } },
+          ],
+        },
+      });
+
+      const result = await service.search('login issue');
+
+      expect(mockEs.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          index: 'kb_articles',
+          query: {
+            multi_match: expect.objectContaining({
+              query: 'login issue',
+              fields: expect.arrayContaining(['title^3', 'body', 'tags']),
+            }),
+          },
+        }),
+      );
+      expect(result[0]).toMatchObject({ id: 'art-1', title: 'Login Guide', slug: 'login-guide' });
+      expect(typeof result[0].excerpt).toBe('string');
+    });
+
+    it('throws ServiceUnavailableException when Elasticsearch is unavailable', async () => {
+      mockEs.search.mockRejectedValue(new Error('Connection refused'));
+      await expect(service.search('login')).rejects.toThrow(ServiceUnavailableException);
+    });
+  });
+
+  describe('suggest', () => {
+    it('fetches ticket and calls ES more_like_this, returns top 5', async () => {
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1', title: 'Login broken', description: 'Cannot log in',
+      });
+      mockEs.search.mockResolvedValue({
+        hits: {
+          hits: [
+            { _id: 'art-1', _source: { title: 'Login Guide', slug: 'login-guide' } },
+          ],
+        },
+      });
+
+      const result = await service.suggest('t-1');
+
+      expect(mockEs.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: {
+            more_like_this: expect.objectContaining({ fields: ['title', 'body'] }),
+          },
+          size: 5,
+        }),
+      );
+      expect(result).toEqual([{ id: 'art-1', title: 'Login Guide', slug: 'login-guide' }]);
+    });
+
+    it('throws NotFoundException for unknown ticketId', async () => {
+      mockPrisma.ticket.findUnique.mockResolvedValue(null);
+      await expect(service.suggest('bad')).rejects.toThrow(NotFoundException);
+    });
+  });
 });
