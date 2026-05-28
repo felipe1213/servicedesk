@@ -133,7 +133,7 @@ docker exec servicedesk-postgres-1 psql -U servicedesk -d servicedesk \
   -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'admin@example.com';"
 ```
 
-Log in at http://localhost:3000 with those credentials. Admin and Manager roles see the **Admin** link in the sidebar for managing routing rules and SLA policies.
+Log in at http://localhost:3000 with those credentials. Admin and Manager roles see the **Admin** link in the sidebar for managing routing rules, SLA policies, and knowledge base articles. All authenticated users see the **Knowledge Base** link for browsing and searching published articles.
 
 ---
 
@@ -485,7 +485,7 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 | Phase 2 | Tickets module — full CRUD, state machine, comments, audit log; web portal UI (dashboard, ticket list, detail, new ticket form) | ✅ Complete |
 | Phase 2 (completion) | Filter + search on ticket list, agent assignment UI, file attachments (MinIO), backend + frontend unit tests | ✅ Complete |
 | Phase 3 | Routing rules engine, SLA policies, breach detection, configurable escalation, admin UI | ✅ Complete |
-| Phase 4a | Knowledge base — internal authoring (markdown), Elasticsearch search, inline ticket suggestions, deflection tracking | 🔨 In Progress |
+| Phase 4a | Knowledge base — internal authoring (markdown), Elasticsearch search, inline ticket suggestions, deflection tracking | ✅ Complete |
 | Phase 4b | External KB connectors — SharePoint and Confluence bidirectional sync, OAuth flows, conflict resolution | 🔜 Planned |
 | Phase 5 | Notifications (Teams, email), manager dashboard widgets, Teams bot, email-to-ticket via Microsoft Graph | 🔜 Planned |
 
