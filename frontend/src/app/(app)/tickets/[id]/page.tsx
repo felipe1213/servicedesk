@@ -38,7 +38,7 @@ export default function TicketDetailPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [suggestions, setSuggestions] = useState<{ id: string; title: string; slug: string }[]>([]);
+  const [suggestions, setSuggestions] = useState<{ id: string; title: string }[]>([]);
   const [deflectingId, setDeflectingId] = useState<string | null>(null);
 
   const isAgent = ['ADMIN', 'MANAGER', 'AGENT'].includes((session as any)?.user?.role ?? '');
@@ -143,18 +143,21 @@ export default function TicketDetailPage() {
 
   async function deflectViaAgent(articleId: string) {
     setDeflectingId(articleId);
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/kb/${articleId}/deflect`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ type: 'AGENT', ticketId: id }),
-    });
-    setDeflectingId(null);
-    // Refresh ticket to show RESOLVED status
-    const h = { Authorization: `Bearer ${(session as any)?.accessToken}` };
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/tickets/${id}`, { headers: h })
-      .then(r => r.ok ? r.json() : null)
-      .then(t => t && setTicket(t))
-      .catch(() => {});
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/kb/${articleId}/deflect`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ type: 'AGENT', ticketId: id }),
+      });
+      // Refresh ticket to show RESOLVED status
+      const h = { Authorization: `Bearer ${(session as any)?.accessToken}` };
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/tickets/${id}`, { headers: h })
+        .then(r => r.ok ? r.json() : null)
+        .then(t => t && setTicket(t))
+        .catch(() => {});
+    } finally {
+      setDeflectingId(null);
+    }
   }
 
   if (error) return <div style={{ color: '#ef4444' }}>{error} <button onClick={() => router.back()} style={linkBtn}>← Back</button></div>;
