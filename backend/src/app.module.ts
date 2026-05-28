@@ -11,6 +11,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { SlaModule } from './modules/sla/sla.module';
 import { RoutingModule } from './modules/routing/routing.module';
+import { KbModule } from './modules/kb/kb.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 
@@ -27,6 +28,7 @@ import { RolesGuard } from './modules/auth/guards/roles.guard';
     AttachmentsModule,
     SlaModule,
     RoutingModule,
+    KbModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
