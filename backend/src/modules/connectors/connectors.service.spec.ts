@@ -265,3 +265,73 @@ describe('ConfluenceService.upsertArticle()', () => {
     expect(log.conflicts).toBe(1);
   });
 });
+
+// ---------- ConnectorsService (conflict resolution) ----------
+
+import { ConnectorsService } from './connectors.service';
+
+const mockSharePointForConflict = { pushArticle: jest.fn().mockResolvedValue(undefined) };
+const mockConfluenceForConflict = { pushArticle: jest.fn().mockResolvedValue(undefined) };
+
+function makeConflictPrisma(article: any) {
+  return {
+    kbArticle: {
+      findUnique: jest.fn().mockResolvedValue(article),
+      update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ ...article, ...data })),
+    },
+  };
+}
+
+function makeConnectorsService(prisma: any) {
+  return new (ConnectorsService as any)(
+    prisma,
+    mockKbService,
+    mockSharePointForConflict,
+    mockConfluenceForConflict,
+  );
+}
+
+const conflictArticle = {
+  id: 'art-c1', title: 'Conflict Art', body: 'local body', source: 'SHAREPOINT',
+  syncConflict: true, externalId: 'ext-1', externalVersion: 'v1',
+  status: 'PUBLISHED',
+  tags: [], slug: 'conflict', publishedAt: new Date(),
+  conflictData: { remoteTitle: 'Remote Title', remoteBody: 'remote body', remoteVersion: 'v2', detectedAt: new Date().toISOString() },
+};
+
+describe('ConnectorsService conflict resolution', () => {
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  it('LOCAL: pushes local body outbound and clears conflict', async () => {
+    const prisma = makeConflictPrisma(conflictArticle);
+    const svc = makeConnectorsService(prisma);
+    await svc.resolveConflict('art-c1', 'LOCAL');
+    expect(mockSharePointForConflict.pushArticle).toHaveBeenCalledWith(conflictArticle);
+    expect(prisma.kbArticle.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ syncConflict: false, conflictData: null }),
+    }));
+    expect(mockKbService.indexArticle).not.toHaveBeenCalled();
+  });
+
+  it('REMOTE: overwrites local body with remoteBody and re-indexes', async () => {
+    const prisma = makeConflictPrisma(conflictArticle);
+    const svc = makeConnectorsService(prisma);
+    await svc.resolveConflict('art-c1', 'REMOTE');
+    expect(prisma.kbArticle.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ body: 'remote body', externalVersion: 'v2', syncConflict: false }),
+    }));
+    expect(mockKbService.indexArticle).toHaveBeenCalled();
+    expect(mockSharePointForConflict.pushArticle).not.toHaveBeenCalled();
+  });
+
+  it('MERGED: saves mergedBody, pushes outbound, and re-indexes', async () => {
+    const prisma = makeConflictPrisma(conflictArticle);
+    const svc = makeConnectorsService(prisma);
+    await svc.resolveConflict('art-c1', 'MERGED', 'merged body');
+    expect(prisma.kbArticle.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ body: 'merged body', syncConflict: false }),
+    }));
+    expect(mockSharePointForConflict.pushArticle).toHaveBeenCalled();
+    expect(mockKbService.indexArticle).toHaveBeenCalled();
+  });
+});
