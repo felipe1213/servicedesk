@@ -46,7 +46,7 @@ export class KbService implements OnModuleInit {
         this.logger.log(`Created Elasticsearch index ${ES_INDEX}`);
       }
     } catch (err) {
-      this.logger.warn(`Could not initialise Elasticsearch index ${ES_INDEX}: ${err?.message ?? err}`);
+      this.logger.warn(`Could not initialise Elasticsearch index ${ES_INDEX}: ${(err as any)?.message ?? err}`);
     }
   }
 
