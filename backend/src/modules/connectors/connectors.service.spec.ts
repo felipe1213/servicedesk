@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { KbArticleStatus, KbSource } from '@prisma/client';
+import { KbArticleStatus, KbSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConnectorConfigService } from './connectors-config.service';
 import { ContentConverterService } from './content-converter.service';
@@ -308,7 +308,7 @@ describe('ConnectorsService conflict resolution', () => {
     await svc.resolveConflict('art-c1', 'LOCAL');
     expect(mockSharePointForConflict.pushArticle).toHaveBeenCalledWith(conflictArticle);
     expect(prisma.kbArticle.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ syncConflict: false, conflictData: null }),
+      data: expect.objectContaining({ syncConflict: false, conflictData: Prisma.JsonNull }),
     }));
     expect(mockKbService.indexArticle).not.toHaveBeenCalled();
   });

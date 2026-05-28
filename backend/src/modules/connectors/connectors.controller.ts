@@ -6,7 +6,7 @@ import { ConnectorsService } from './connectors.service';
 import { SharePointService } from './sharepoint.service';
 import { ConfluenceService } from './confluence.service';
 import { SyncSchedulerService } from './sync-scheduler.service';
-import { SaveSharePointConfigDto, SaveConfluenceConfigDto } from './dto/connector-config.dto';
+import { SaveSharePointConfigDto, SaveConfluenceConfigDto, ExportArticleDto } from './dto/connector-config.dto';
 import { ResolveConflictDto } from './dto/resolve-conflict.dto';
 
 @Controller('connectors')
@@ -65,8 +65,8 @@ export class ConnectorsController {
 
   @Post('export/:articleId')
   @Roles(Role.ADMIN, Role.MANAGER)
-  async exportArticle(@Param('articleId') articleId: string, @Body() body: { connector: 'SHAREPOINT' | 'CONFLUENCE' }) {
-    if (body.connector === 'SHAREPOINT') {
+  async exportArticle(@Param('articleId') articleId: string, @Body() dto: ExportArticleDto) {
+    if (dto.connector === 'SHAREPOINT') {
       await this.sharepoint.exportArticle(articleId);
     } else {
       await this.confluence.exportArticle(articleId);

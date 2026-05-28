@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { KbSource } from '@prisma/client';
+import { KbSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KbService } from '../kb/kb.service';
 import { SharePointService } from './sharepoint.service';
@@ -35,7 +35,7 @@ export class ConnectorsService {
         : await this.confluence.pushArticle(article as any);
       await this.prisma.kbArticle.update({
         where: { id: articleId },
-        data: { syncConflict: false, conflictData: null as any},
+        data: { syncConflict: false, conflictData: Prisma.JsonNull},
       });
       return;
     }
@@ -44,7 +44,7 @@ export class ConnectorsService {
       if (!conflictData) throw new BadRequestException('No conflict data');
       const updated = await this.prisma.kbArticle.update({
         where: { id: articleId },
-        data: { body: conflictData.remoteBody, externalVersion: conflictData.remoteVersion, lastSyncedAt: new Date(), syncConflict: false, conflictData: null as any},
+        data: { body: conflictData.remoteBody, externalVersion: conflictData.remoteVersion, lastSyncedAt: new Date(), syncConflict: false, conflictData: Prisma.JsonNull},
       });
       await this.kb.indexArticle(updated);
       return;
@@ -54,7 +54,7 @@ export class ConnectorsService {
       if (!mergedBody) throw new BadRequestException('mergedBody required for MERGED resolution');
       const updated = await this.prisma.kbArticle.update({
         where: { id: articleId },
-        data: { body: mergedBody, syncConflict: false, conflictData: null as any},
+        data: { body: mergedBody, syncConflict: false, conflictData: Prisma.JsonNull},
       });
       article.source === KbSource.SHAREPOINT
         ? await this.sharepoint.pushArticle(updated as any)

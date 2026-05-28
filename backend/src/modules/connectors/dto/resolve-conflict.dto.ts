@@ -1,6 +1,6 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class ResolveConflictDto {
   @IsEnum(['LOCAL', 'REMOTE', 'MERGED']) resolution!: 'LOCAL' | 'REMOTE' | 'MERGED';
-  @IsString() @IsOptional() mergedBody?: string;
+  @IsString() @IsNotEmpty() @IsOptional() mergedBody?: string;
 }
