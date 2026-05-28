@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 const BASE_NAV: { href: string; label: string }[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/tickets', label: 'Tickets' },
+  { href: '/kb', label: 'Knowledge Base' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

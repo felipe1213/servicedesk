@@ -38,6 +38,8 @@ export default function TicketDetailPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [suggestions, setSuggestions] = useState<{ id: string; title: string; slug: string }[]>([]);
+  const [deflectingId, setDeflectingId] = useState<string | null>(null);
 
   const isAgent = ['ADMIN', 'MANAGER', 'AGENT'].includes((session as any)?.user?.role ?? '');
 
@@ -60,6 +62,10 @@ export default function TicketDetailPage() {
       fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/agents`, { headers: h })
         .then(r => r.ok ? r.json() : [])
         .then(setAgents)
+        .catch(() => {});
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/kb/suggest?ticketId=${id}`, { headers: h })
+        .then(r => r.ok ? r.json() : [])
+        .then(setSuggestions)
         .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,6 +139,22 @@ export default function TicketDetailPage() {
     } else {
       setUploadError('Upload failed. Try again.');
     }
+  }
+
+  async function deflectViaAgent(articleId: string) {
+    setDeflectingId(articleId);
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/kb/${articleId}/deflect`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ type: 'AGENT', ticketId: id }),
+    });
+    setDeflectingId(null);
+    // Refresh ticket to show RESOLVED status
+    const h = { Authorization: `Bearer ${(session as any)?.accessToken}` };
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/tickets/${id}`, { headers: h })
+      .then(r => r.ok ? r.json() : null)
+      .then(t => t && setTicket(t))
+      .catch(() => {});
   }
 
   if (error) return <div style={{ color: '#ef4444' }}>{error} <button onClick={() => router.back()} style={linkBtn}>← Back</button></div>;
@@ -215,6 +237,25 @@ export default function TicketDetailPage() {
           </div>
         </form>
       </div>
+
+      {/* Suggested KB Articles */}
+      {isAgent && suggestions.length > 0 && (
+        <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, padding: 32, marginBottom: 24 }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: 16, color: '#0f172a' }}>Suggested Articles</h2>
+          {suggestions.map(s => (
+            <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+              <a href={`/kb/${s.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', fontSize: 14, textDecoration: 'none' }}>{s.title}</a>
+              <button
+                onClick={() => deflectViaAgent(s.id)}
+                disabled={deflectingId === s.id}
+                style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 12, opacity: deflectingId === s.id ? 0.6 : 1 }}
+              >
+                {deflectingId === s.id ? 'Resolving…' : 'Resolved by this article'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Attachments */}
       <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, padding: 32, marginBottom: 24 }}>
