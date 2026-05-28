@@ -18,5 +18,6 @@ import { KbService } from './kb.service';
   ],
   controllers: [KbController],
   providers: [KbService],
+  exports: [KbService],
 })
 export class KbModule {}

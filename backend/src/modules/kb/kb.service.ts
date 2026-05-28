@@ -56,7 +56,7 @@ export class KbService implements OnModuleInit {
     return `${base}-${suffix}`;
   }
 
-  private async indexArticle(article: {
+  async indexArticle(article: {
     id: string; title: string; body: string; tags: string[];
     slug: string; publishedAt: Date | null;
   }) {

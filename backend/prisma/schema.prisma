@@ -203,9 +203,14 @@ model KbArticle {
   status      KbArticleStatus @default(DRAFT)
   slug        String          @unique
   publishedAt DateTime?
-  deflections KbDeflection[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  deflections     KbDeflection[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  externalId      String?
+  externalVersion String?
+  lastSyncedAt    DateTime?
+  syncConflict    Boolean         @default(false)
+  conflictData    Json?
 }
 
 model KbDeflection {
@@ -251,4 +256,18 @@ model AppConfig {
   key       String   @unique
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model KbSyncLog {
+  id              String    @id @default(cuid())
+  connector       KbSource
+  startedAt       DateTime
+  completedAt     DateTime?
+  status          String
+  articlesNew     Int       @default(0)
+  articlesUpdated Int       @default(0)
+  conflicts       Int       @default(0)
+  errorMessage    String?
+
+  @@index([connector])
 }
