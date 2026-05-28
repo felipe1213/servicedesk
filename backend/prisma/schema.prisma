@@ -211,6 +211,8 @@ model KbArticle {
   lastSyncedAt    DateTime?
   syncConflict    Boolean         @default(false)
   conflictData    Json?
+
+  @@unique([source, externalId])
 }
 
 model KbDeflection {
@@ -261,7 +263,7 @@ model AppConfig {
 model KbSyncLog {
   id              String    @id @default(cuid())
   connector       KbSource
-  startedAt       DateTime
+  startedAt       DateTime  @default(now())
   completedAt     DateTime?
   status          String
   articlesNew     Int       @default(0)
