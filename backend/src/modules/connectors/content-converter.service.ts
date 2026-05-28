@@ -11,9 +11,14 @@ export class ContentConverterService {
   }
 
   htmlToMarkdown(html: string): string {
-    const cleaned = html
-      .replace(/<ac:[^>]*>[\s\S]*?<\/ac:[^>]*>/g, '')
-      .replace(/<ri:[^/]*\/>/g, '');
+    let cleaned = html;
+    let prev: string;
+    do {
+      prev = cleaned;
+      cleaned = cleaned
+        .replace(/<ac:[^>]*>[\s\S]*?<\/ac:[^>]*>/g, '')
+        .replace(/<ri:[^/]*\/>/g, '');
+    } while (cleaned !== prev);
     return this.td.turndown(cleaned);
   }
 

@@ -34,7 +34,11 @@ export class ConnectorConfigService {
   ) {}
 
   private get encryptionKey(): Buffer {
-    return Buffer.from(this.config.getOrThrow<string>('CONNECTOR_ENCRYPTION_KEY'), 'hex');
+    const hex = this.config.getOrThrow<string>('CONNECTOR_ENCRYPTION_KEY');
+    if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
+      throw new Error('CONNECTOR_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
+    }
+    return Buffer.from(hex, 'hex');
   }
 
   encrypt(plaintext: string): string {
@@ -60,9 +64,13 @@ export class ConnectorConfigService {
   async getConfig(connector: 'sharepoint' | 'confluence'): Promise<SharePointConfig | ConfluenceConfig | null> {
     const record = await this.prisma.appConfig.findUnique({ where: { key: `connector.${connector}` } });
     if (!record) return null;
-    const parsed = JSON.parse(record.value);
-    if (connector === 'sharepoint') return { ...parsed, clientSecret: this.decrypt(parsed.clientSecret) };
-    return { ...parsed, apiToken: this.decrypt(parsed.apiToken) };
+    try {
+      const parsed = JSON.parse(record.value);
+      if (connector === 'sharepoint') return { ...parsed, clientSecret: this.decrypt(parsed.clientSecret) };
+      return { ...parsed, apiToken: this.decrypt(parsed.apiToken) };
+    } catch {
+      throw new Error(`Connector config for ${connector} is corrupt or encrypted with a different key`);
+    }
   }
 
   async getRedactedConfig(connector: 'sharepoint' | 'confluence') {
