@@ -118,6 +118,13 @@ Once all containers are healthy:
 
 The backend runs `prisma migrate deploy` automatically on startup — no manual migration step needed.
 
+> **Elasticsearch disk warning:** If your machine's disk is >90% full, Elasticsearch will refuse to create indexes and the KB search feature will be unavailable. Disable the threshold check with:
+> ```bash
+> curl -X PUT http://localhost:9200/_cluster/settings \
+>   -H 'Content-Type: application/json' \
+>   -d '{"transient":{"cluster.routing.allocation.disk.threshold_enabled":false}}'
+> ```
+
 ### Creating the first admin user
 
 There is no seed file. Register a user through the API, then promote it to ADMIN via Postgres:
@@ -126,14 +133,14 @@ There is no seed file. Register a user through the API, then promote it to ADMIN
 # 1. Register
 curl -s -X POST http://localhost:4000/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Admin","email":"admin@example.com","password":"yourpassword"}'
+  -d '{"name":"Admin","email":"admin@example.com","password":"Admin1234!"}'
 
 # 2. Promote to ADMIN
 docker exec servicedesk-postgres-1 psql -U servicedesk -d servicedesk \
   -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'admin@example.com';"
 ```
 
-Log in at http://localhost:3000 with those credentials. Admin and Manager roles see the **Admin** link in the sidebar for managing routing rules, SLA policies, and knowledge base articles. All authenticated users see the **Knowledge Base** link for browsing and searching published articles.
+Log in at http://localhost:3000 with `admin@example.com` / `Admin1234!` (or whatever password you chose). Admin and Manager roles see the **Admin** link in the sidebar for managing routing rules, SLA policies, and knowledge base articles. All authenticated users see the **Knowledge Base** link for browsing and searching published articles.
 
 ---
 
