@@ -33,15 +33,15 @@ it('renders all articles including drafts', async () => {
 
 it('shows draft badge for draft article', async () => {
   render(<AdminKbPage />);
-  await waitFor(() => screen.getByText('VPN Draft'));
+  await waitFor(() => expect(screen.getByText('VPN Draft')).toBeInTheDocument());
   expect(screen.getByText('DRAFT')).toBeInTheDocument();
   expect(screen.getByText('PUBLISHED')).toBeInTheDocument();
 });
 
 it('opens edit form when Edit clicked', async () => {
   render(<AdminKbPage />);
-  await waitFor(() => screen.getAllByText('Edit'));
-  await userEvent.click(screen.getAllByText('Edit')[0]);
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Edit' })[0]).toBeInTheDocument());
+  await userEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
   expect(screen.getByText('Edit Article')).toBeInTheDocument();
   // form is pre-populated with first article title
   expect(screen.getByDisplayValue('Reset Password')).toBeInTheDocument();
@@ -49,7 +49,7 @@ it('opens edit form when Edit clicked', async () => {
 
 it('shows New Article form when button clicked', async () => {
   render(<AdminKbPage />);
-  await waitFor(() => screen.getByText('New Article'));
+  await waitFor(() => expect(screen.getByText('New Article')).toBeInTheDocument());
   await userEvent.click(screen.getByText('New Article', { selector: 'button' }));
   expect(screen.getByText('New Article', { selector: 'h2' })).toBeInTheDocument();
 });
