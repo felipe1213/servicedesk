@@ -1,8 +1,10 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { KbArticleStatus, KbSource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConnectorConfigService } from './connectors-config.service';
 import { ContentConverterService } from './content-converter.service';
+import { SharePointService } from './sharepoint.service';
 
 // ---------- ConnectorConfigService ----------
 
@@ -118,9 +120,6 @@ describe('ContentConverterService', () => {
 
 // ---------- SharePointService ----------
 
-import { SharePointService } from './sharepoint.service';
-import { KbArticleStatus, KbSource } from '@prisma/client';
-
 const mockKbService = { indexArticle: jest.fn() };
 
 function makeSpPrisma(existing: any) {
@@ -151,7 +150,7 @@ describe('SharePointService.upsertArticle()', () => {
 
   it('creates new article when externalId not found', async () => {
     const prisma = makeSpPrisma(null);
-    prisma.kbArticle.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'new-id', status: KbArticleStatus.PUBLISHED, title: 'Test Page', body: '# Hello', tags: [], slug: 'test', publishedAt: new Date() });
+    prisma.kbArticle.findFirst.mockResolvedValueOnce(null);
     const svc = makeSpService(prisma);
     const log = { ...logRef };
     await svc.upsertArticle(remoteItem, log);

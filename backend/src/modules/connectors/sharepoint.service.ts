@@ -46,7 +46,7 @@ export class SharePointService {
       `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`,
       { method: 'POST', body: params, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
     );
-    if (!res.ok) throw new Error(`SharePoint OAuth failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) throw new Error(`SharePoint OAuth failed: ${res.status}`);
     const data = await res.json() as { access_token: string; expires_in: number };
     this.cachedToken = { value: data.access_token, expiresAt: Date.now() + (data.expires_in - 60) * 1000 };
     return this.cachedToken.value;
@@ -147,8 +147,8 @@ export class SharePointService {
     const markdown = this.converter.htmlToMarkdown(item.body);
 
     if (!existing) {
-      const slug = item.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Math.random().toString(36).slice(2, 8);
-      await this.prisma.kbArticle.create({
+      const slug = `sp-${item.id.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      const created = await this.prisma.kbArticle.create({
         data: {
           title: item.title, body: markdown, tags: [],
           status: KbArticleStatus.PUBLISHED, slug,
@@ -157,8 +157,7 @@ export class SharePointService {
           lastSyncedAt: new Date(), publishedAt: new Date(), authorId: null,
         },
       });
-      const created = await this.prisma.kbArticle.findFirst({ where: { externalId: item.id } });
-      if (created) await this.kb.indexArticle(created);
+      await this.kb.indexArticle(created);
       await this.prisma.kbSyncLog.update({ where: { id: log.id }, data: { articlesNew: { increment: 1 } } });
       log.articlesNew++;
       return;
@@ -202,7 +201,11 @@ export class SharePointService {
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: article.title, webHtml: html }) },
     );
     if (!res.ok) { this.logger.warn(`SharePoint push failed for article ${article.id}: ${res.status}`); return; }
-    const etag = res.headers.get('etag') ?? article.externalVersion ?? '';
+    const getRes = await this.fetchWithRetry(
+      `https://graph.microsoft.com/v1.0/sites/${sid}/pages/${article.externalId}`,
+      token,
+    );
+    const etag = getRes.ok ? (getRes.headers.get('etag') ?? article.externalVersion ?? '') : (article.externalVersion ?? '');
     await this.prisma.kbArticle.update({ where: { id: article.id }, data: { externalVersion: etag, lastSyncedAt: new Date() } });
   }
 
@@ -213,11 +216,11 @@ export class SharePointService {
     const token = await this.getAccessToken(config);
     const html = this.converter.markdownToHtml(article.body);
     const sid = encodeURIComponent(this.siteId(config.siteUrl));
-    const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${sid}/pages`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: article.title, webHtml: html }),
-    });
+    const res = await this.fetchWithRetry(
+      `https://graph.microsoft.com/v1.0/sites/${sid}/pages`,
+      token,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: article.title, webHtml: html }) },
+    );
     if (!res.ok) throw new Error(`SharePoint export failed: ${res.status} ${await res.text()}`);
     const created = await res.json() as { id: string; webUrl: string; '@odata.etag'?: string };
     await this.prisma.kbArticle.update({
