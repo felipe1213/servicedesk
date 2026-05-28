@@ -6,8 +6,14 @@ CREATE TYPE "DeflectionType" AS ENUM ('AGENT', 'END_USER');
 
 -- AlterTable
 ALTER TABLE "KbArticle" ADD COLUMN     "publishedAt" TIMESTAMP(3),
-ADD COLUMN     "slug" TEXT NOT NULL,
+ADD COLUMN     "slug" TEXT,
 ADD COLUMN     "status" "KbArticleStatus" NOT NULL DEFAULT 'DRAFT';
+
+-- BackfillSlug
+UPDATE "KbArticle" SET "slug" = LOWER(REGEXP_REPLACE(title, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || SUBSTRING(id, 1, 6) WHERE "slug" IS NULL;
+
+-- SetSlugNotNull
+ALTER TABLE "KbArticle" ALTER COLUMN "slug" SET NOT NULL;
 
 -- CreateTable
 CREATE TABLE "KbDeflection" (
