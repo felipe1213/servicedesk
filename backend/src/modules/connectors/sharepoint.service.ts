@@ -221,7 +221,7 @@ export class SharePointService {
       token,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: article.title, webHtml: html }) },
     );
-    if (!res.ok) throw new Error(`SharePoint export failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) throw new Error(`SharePoint export failed: ${res.status}`);
     const created = await res.json() as { id: string; webUrl: string; '@odata.etag'?: string };
     await this.prisma.kbArticle.update({
       where: { id: articleId },
