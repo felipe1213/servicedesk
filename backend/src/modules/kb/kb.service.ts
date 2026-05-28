@@ -80,4 +80,79 @@ export class KbService implements OnModuleInit {
       this.logger.warn(`ES delete failed for article ${id}: ${(e as Error).message}`);
     }
   }
+
+  async findAll(user: RequestUser) {
+    const where: Record<string, unknown> = {};
+    if (user.role !== Role.ADMIN && user.role !== Role.MANAGER) {
+      where.status = KbArticleStatus.PUBLISHED;
+    }
+    return this.prisma.kbArticle.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true, title: true, slug: true, status: true, tags: true,
+        body: true, viewCount: true, updatedAt: true,
+        author: { select: { name: true } },
+      },
+    });
+  }
+
+  async findOne(id: string) {
+    const article = await this.prisma.kbArticle.findUnique({
+      where: { id },
+      include: { author: { select: { name: true } } },
+    });
+    if (!article) throw new NotFoundException(`Article ${id} not found`);
+    await this.prisma.kbArticle.update({
+      where: { id },
+      data: { viewCount: { increment: 1 } },
+    });
+    return article;
+  }
+
+  async create(dto: CreateArticleDto, user: RequestUser) {
+    const slug = this.generateSlug(dto.title);
+    const status = dto.status ?? KbArticleStatus.DRAFT;
+    const publishedAt = status === KbArticleStatus.PUBLISHED ? new Date() : null;
+    const article = await this.prisma.kbArticle.create({
+      data: {
+        title: dto.title,
+        body: dto.body,
+        tags: dto.tags ?? [],
+        status,
+        slug,
+        publishedAt,
+        authorId: user.id,
+      },
+    });
+    if (article.status === KbArticleStatus.PUBLISHED) {
+      await this.indexArticle(article);
+    }
+    return article;
+  }
+
+  async update(id: string, dto: UpdateArticleDto) {
+    const existing = await this.prisma.kbArticle.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException(`Article ${id} not found`);
+
+    const data: Record<string, unknown> = { ...dto };
+    if (dto.status === KbArticleStatus.PUBLISHED && !existing.publishedAt) {
+      data.publishedAt = new Date();
+    }
+
+    const updated = await this.prisma.kbArticle.update({ where: { id }, data });
+
+    if (updated.status === KbArticleStatus.PUBLISHED) {
+      await this.indexArticle(updated);
+    } else {
+      await this.removeFromIndex(id);
+    }
+
+    return updated;
+  }
+
+  async remove(id: string) {
+    await this.prisma.kbArticle.delete({ where: { id } });
+    await this.removeFromIndex(id);
+  }
 }
