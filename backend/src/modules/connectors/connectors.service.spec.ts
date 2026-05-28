@@ -197,3 +197,71 @@ describe('SharePointService.upsertArticle()', () => {
     expect(log.conflicts).toBe(1);
   });
 });
+
+// ---------- ConfluenceService ----------
+
+import { ConfluenceService } from './confluence.service';
+
+function makeCfService(prisma: any) {
+  return new (ConfluenceService as any)(
+    prisma,
+    mockKbService,
+    { getConfig: jest.fn(), encrypt: jest.fn(), decrypt: jest.fn() },
+    new ContentConverterService(),
+  );
+}
+
+const cfRemote = { id: 'cf-page-1', title: 'CF Page', body: '<p>Confluence body</p>', version: '3', webUrl: 'https://myorg.atlassian.net/wiki/page' };
+
+describe('ConfluenceService.upsertArticle()', () => {
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  it('creates new article when externalId not found', async () => {
+    const prisma = makeSpPrisma(null);
+    prisma.kbArticle.findFirst.mockResolvedValueOnce(null);
+    prisma.kbArticle.create.mockResolvedValueOnce({ id: 'new-id', status: KbArticleStatus.PUBLISHED, title: 'CF Page', body: '# CF', tags: [], slug: 'cf-page', publishedAt: new Date() });
+    const svc = makeCfService(prisma);
+    const log = { ...logRef };
+    await svc.upsertArticle(cfRemote, log);
+    expect(prisma.kbArticle.create).toHaveBeenCalled();
+    expect(mockKbService.indexArticle).toHaveBeenCalled();
+    expect(log.articlesNew).toBe(1);
+  });
+
+  it('skips when externalVersion matches', async () => {
+    const existing = { id: 'art-2', externalId: 'cf-page-1', externalVersion: '3', updatedAt: new Date(), lastSyncedAt: new Date() };
+    const prisma = makeSpPrisma(existing);
+    const svc = makeCfService(prisma);
+    const log = { ...logRef };
+    await svc.upsertArticle(cfRemote, log);
+    expect(prisma.kbArticle.update).not.toHaveBeenCalled();
+  });
+
+  it('updates article when remote changed and no local edits', async () => {
+    const lastSyncedAt = new Date(Date.now() - 10000);
+    const updatedAt = new Date(Date.now() - 20000);
+    const existing = { id: 'art-2', externalId: 'cf-page-1', externalVersion: '2', status: KbArticleStatus.PUBLISHED, updatedAt, lastSyncedAt };
+    const prisma = makeSpPrisma(existing);
+    const svc = makeCfService(prisma);
+    const log = { ...logRef };
+    await svc.upsertArticle(cfRemote, log);
+    expect(prisma.kbArticle.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ externalVersion: '3' }),
+    }));
+    expect(log.articlesUpdated).toBe(1);
+  });
+
+  it('sets syncConflict when both sides edited', async () => {
+    const lastSyncedAt = new Date(Date.now() - 10000);
+    const updatedAt = new Date(Date.now() - 5000);
+    const existing = { id: 'art-2', externalId: 'cf-page-1', externalVersion: '2', updatedAt, lastSyncedAt };
+    const prisma = makeSpPrisma(existing);
+    const svc = makeCfService(prisma);
+    const log = { ...logRef };
+    await svc.upsertArticle(cfRemote, log);
+    expect(prisma.kbArticle.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ syncConflict: true }),
+    }));
+    expect(log.conflicts).toBe(1);
+  });
+});
