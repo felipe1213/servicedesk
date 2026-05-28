@@ -234,9 +234,13 @@ servicedesk/
 │   │       ├── attachments/    # File attachments — MinIO wrapper (Phase 2 completion)
 │   │       │   ├── attachments.service.ts
 │   │       │   └── attachments.controller.ts
-│   │       └── users/          # Agent list endpoint (Phase 2 completion)
-│   │           ├── users.service.ts
-│   │           └── users.controller.ts
+│   │       ├── users/          # Agent list endpoint (Phase 2 completion)
+│   │       │   ├── users.service.ts
+│   │       │   └── users.controller.ts
+│   │       └── kb/             # Knowledge base module (Phase 4a)
+│   │           ├── dto/        # CreateArticleDto, UpdateArticleDto
+│   │           ├── kb.service.ts
+│   │           └── kb.controller.ts
 │   ├── Dockerfile
 │   ├── nest-cli.json
 │   ├── tsconfig.json
@@ -252,7 +256,9 @@ servicedesk/
 │   │   │   └── (app)/          # Authenticated route group (Phase 2)
 │   │   │       ├── layout.tsx  # Sidebar nav layout
 │   │   │       ├── dashboard/  # Stats overview
-│   │   │       └── tickets/    # Ticket list, new ticket, ticket detail
+│   │   │       ├── tickets/    # Ticket list, new ticket, ticket detail
+│   │   │       ├── kb/         # Knowledge base browse + article view (Phase 4a)
+│   │   │       └── admin/      # Routing rules, SLA policies, KB management
 │   │   ├── components/
 │   │   │   └── session-provider.tsx  # Client wrapper for NextAuth SessionProvider
 │   │   ├── lib/
@@ -359,6 +365,19 @@ All routes are protected by a global `JwtAuthGuard`. Endpoints decorated with `@
 | PATCH | `/sla-policies/:id` | Update an SLA policy |
 | DELETE | `/sla-policies/:id` | Delete an SLA policy |
 
+### Knowledge Base endpoints (Phase 4a)
+
+| Method | Path | Roles | Description |
+|---|---|---|---|
+| GET | `/kb` | All | List published articles (ADMIN/MANAGER see drafts too) |
+| POST | `/kb` | ADMIN, MANAGER | Create article |
+| GET | `/kb/search?q=` | All | Elasticsearch full-text search |
+| GET | `/kb/suggest?ticketId=` | AGENT+ | Top 5 article suggestions for a ticket |
+| GET | `/kb/:id` | All | View article (increments viewCount) |
+| PATCH | `/kb/:id` | ADMIN, MANAGER | Update article |
+| DELETE | `/kb/:id` | ADMIN | Delete article |
+| POST | `/kb/:id/deflect` | All | Log deflection (`{ type: 'AGENT'\|'END_USER', ticketId? }`) |
+
 `sourceChannel` must be one of `WEB`, `TEAMS`, `EMAIL`.  
 `priority` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` (defaults to `MEDIUM`).  
 `status` must be one of `NEW`, `ASSIGNED`, `IN_PROGRESS`, `PENDING`, `RESOLVED`, `CLOSED`.
@@ -442,7 +461,8 @@ Key models and relationships:
 | `AuditLog` | Immutable record of every ticket state change |
 | `SlaPolicy` | Per-priority response and resolution time targets |
 | `RoutingRule` | Ordered rules that auto-assign new tickets to a team or agent |
-| `KbArticle` | Knowledge base articles (internal, SharePoint, or Confluence source) |
+| `KbArticle` | Knowledge base articles (internal, SharePoint, or Confluence source); status DRAFT/PUBLISHED, slug, viewCount |
+| `KbDeflection` | Tracks when a KB article resolved a ticket (AGENT) or satisfied an end user (END_USER) |
 | `Attachment` | File metadata; binary stored in MinIO |
 | `DashboardConfig` | Per-user widget layout stored as JSON |
 | `AppConfig` | Key/value store for admin-configurable settings |
@@ -465,7 +485,8 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 | Phase 2 | Tickets module — full CRUD, state machine, comments, audit log; web portal UI (dashboard, ticket list, detail, new ticket form) | ✅ Complete |
 | Phase 2 (completion) | Filter + search on ticket list, agent assignment UI, file attachments (MinIO), backend + frontend unit tests | ✅ Complete |
 | Phase 3 | Routing rules engine, SLA policies, breach detection, configurable escalation, admin UI | ✅ Complete |
-| Phase 4 | Knowledge base — internal authoring, SharePoint/Confluence connectors, Elasticsearch search | 🔜 Planned |
+| Phase 4a | Knowledge base — internal authoring (markdown), Elasticsearch search, inline ticket suggestions, deflection tracking | 🔨 In Progress |
+| Phase 4b | External KB connectors — SharePoint and Confluence bidirectional sync, OAuth flows, conflict resolution | 🔜 Planned |
 | Phase 5 | Notifications (Teams, email), manager dashboard widgets, Teams bot, email-to-ticket via Microsoft Graph | 🔜 Planned |
 
 ---
