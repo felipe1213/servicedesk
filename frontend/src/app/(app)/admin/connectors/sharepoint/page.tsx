@@ -170,6 +170,7 @@ export default function SharePointPage() {
             <thead>
               <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                 <th style={{ textAlign: 'left', padding: '4px 8px', color: '#64748b' }}>Started</th>
+                <th style={{ textAlign: 'right', padding: '4px 8px', color: '#64748b' }}>Duration</th>
                 <th style={{ textAlign: 'right', padding: '4px 8px', color: '#64748b' }}>New</th>
                 <th style={{ textAlign: 'right', padding: '4px 8px', color: '#64748b' }}>Updated</th>
                 <th style={{ textAlign: 'right', padding: '4px 8px', color: '#64748b' }}>Conflicts</th>
@@ -180,6 +181,12 @@ export default function SharePointPage() {
               {logs.map(log => (
                 <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '6px 8px' }}>{new Date(log.startedAt).toLocaleString()}</td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                    {log.completedAt ? (() => {
+                      const secs = Math.round((new Date(log.completedAt).getTime() - new Date(log.startedAt).getTime()) / 1000);
+                      return secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`;
+                    })() : '—'}
+                  </td>
                   <td style={{ padding: '6px 8px', textAlign: 'right' }}>{log.articlesNew}</td>
                   <td style={{ padding: '6px 8px', textAlign: 'right' }}>{log.articlesUpdated}</td>
                   <td style={{ padding: '6px 8px', textAlign: 'right' }}>{log.conflicts}</td>

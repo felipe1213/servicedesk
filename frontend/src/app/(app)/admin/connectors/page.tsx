@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 interface ConnectorStatus {
   enabled: boolean;
   conflicts: number;
+  lastSyncedAt: string | null;
 }
 
 const CARDS = [
@@ -24,18 +25,25 @@ export default function ConnectorsPage() {
     const api = process.env.NEXT_PUBLIC_API_URL;
 
     async function load() {
-      const [spRes, cfRes, conflictsRes] = await Promise.all([
+      const [spRes, cfRes, conflictsRes, logsRes] = await Promise.all([
         fetch(`${api}/connectors/sharepoint/config`, { headers: auth }),
         fetch(`${api}/connectors/confluence/config`, { headers: auth }),
         fetch(`${api}/connectors/conflicts`, { headers: auth }),
+        fetch(`${api}/connectors/logs`, { headers: auth }),
       ]);
       const conflicts: any[] = conflictsRes.ok ? await conflictsRes.json() : [];
       const spConfig = spRes.ok ? await spRes.json() : null;
       const cfConfig = cfRes.ok ? await cfRes.json() : null;
+      const allLogs: any[] = logsRes.ok ? await logsRes.json() : [];
+
+      const lastSync = (connector: string) => {
+        const log = allLogs.find((l: any) => l.connector === connector);
+        return log?.startedAt ?? null;
+      };
 
       setStatuses({
-        sharepoint: { enabled: spConfig?.enabled ?? false, conflicts: conflicts.filter((c: any) => c.source === 'SHAREPOINT').length },
-        confluence: { enabled: cfConfig?.enabled ?? false, conflicts: conflicts.filter((c: any) => c.source === 'CONFLUENCE').length },
+        sharepoint: { enabled: spConfig?.enabled ?? false, conflicts: conflicts.filter((c: any) => c.source === 'SHAREPOINT').length, lastSyncedAt: lastSync('SHAREPOINT') },
+        confluence: { enabled: cfConfig?.enabled ?? false, conflicts: conflicts.filter((c: any) => c.source === 'CONFLUENCE').length, lastSyncedAt: lastSync('CONFLUENCE') },
       });
     }
     load().catch(() => {});
@@ -68,6 +76,9 @@ export default function ConnectorsPage() {
                     </Link>
                   </div>
                 )}
+                <div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>
+                  Last sync: {status?.lastSyncedAt ? new Date(status.lastSyncedAt).toLocaleString() : 'Never'}
+                </div>
                 <div style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Configure sync settings and credentials.</div>
               </div>
             </Link>
