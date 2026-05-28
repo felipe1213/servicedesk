@@ -28,21 +28,25 @@ export class KbService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    const exists = await this.es.indices.exists({ index: ES_INDEX });
-    if (!exists) {
-      await this.es.indices.create({
-        index: ES_INDEX,
-        mappings: {
-          properties: {
-            title: { type: 'text' },
-            body: { type: 'text' },
-            tags: { type: 'keyword' },
-            slug: { type: 'keyword' },
-            publishedAt: { type: 'date' },
+    try {
+      const exists = await this.es.indices.exists({ index: ES_INDEX });
+      if (!exists) {
+        await this.es.indices.create({
+          index: ES_INDEX,
+          mappings: {
+            properties: {
+              title: { type: 'text' },
+              body: { type: 'text' },
+              tags: { type: 'keyword' },
+              slug: { type: 'keyword' },
+              publishedAt: { type: 'date' },
+            },
           },
-        },
-      });
-      this.logger.log(`Created Elasticsearch index ${ES_INDEX}`);
+        });
+        this.logger.log(`Created Elasticsearch index ${ES_INDEX}`);
+      }
+    } catch (err) {
+      this.logger.warn(`Could not initialise Elasticsearch index ${ES_INDEX}: ${err?.message ?? err}`);
     }
   }
 
