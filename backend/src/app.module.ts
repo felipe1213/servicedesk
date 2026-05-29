@@ -14,6 +14,7 @@ import { RoutingModule } from './modules/routing/routing.module';
 import { KbModule } from './modules/kb/kb.module';
 import { ConnectorsModule } from './modules/connectors/connectors.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 
@@ -33,6 +34,7 @@ import { RolesGuard } from './modules/auth/guards/roles.guard';
     KbModule,
     ConnectorsModule,
     DashboardModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
