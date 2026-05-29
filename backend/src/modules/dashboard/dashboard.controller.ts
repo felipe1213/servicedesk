@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, Request } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseEnumPipe, Put, Request } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { DashboardService } from './dashboard.service';
@@ -22,13 +22,13 @@ export class DashboardController {
 
   @Get('defaults/:role')
   @Roles(Role.ADMIN)
-  getRoleDefault(@Param('role') role: Role) {
+  getRoleDefault(@Param('role', new ParseEnumPipe(Role)) role: Role) {
     return this.dashboardService.getRoleDefault(role);
   }
 
   @Put('defaults/:role')
   @Roles(Role.ADMIN)
-  saveRoleDefault(@Param('role') role: Role, @Body() dto: SaveWidgetLayoutDto) {
+  saveRoleDefault(@Param('role', new ParseEnumPipe(Role)) role: Role, @Body() dto: SaveWidgetLayoutDto) {
     return this.dashboardService.saveRoleDefault(role, dto.widgets);
   }
 }
