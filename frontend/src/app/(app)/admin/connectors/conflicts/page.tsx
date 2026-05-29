@@ -60,8 +60,8 @@ export default function ConflictsPage() {
   const connectorBadge = (source: string) => {
     const isSharepoint = source?.toUpperCase() === 'SHAREPOINT';
     const isConfluence = source?.toUpperCase() === 'CONFLUENCE';
-    const bg = isSharepoint ? '#dbeafe' : isConfluence ? '#e0f2fe' : '#f1f5f9';
-    const fg = isSharepoint ? '#1d4ed8' : isConfluence ? '#0369a1' : '#374151';
+    const bg = isSharepoint ? '#dbeafe' : isConfluence ? '#ccfbf1' : '#f1f5f9';
+    const fg = isSharepoint ? '#1d4ed8' : isConfluence ? '#0d9488' : '#374151';
     return (
       <span style={{ padding: '2px 8px', borderRadius: 12, background: bg, color: fg, fontSize: 12, fontWeight: 600 }}>
         {source?.toUpperCase() ?? 'UNKNOWN'}
