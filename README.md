@@ -393,6 +393,24 @@ All protected endpoints require `Authorization: Bearer <accessToken>` in the req
 
 Rate limiting is applied globally at 10 requests per minute per IP via `@nestjs/throttler`.
 
+### Phase 4b — External KB Connectors (SharePoint + Confluence)
+
+Bidirectional sync between the KB and external platforms.
+
+**Backend**
+- `ConnectorsModule` — `ConnectorConfigService` (AES-256-GCM encrypted credentials), `SharePointService` (OAuth 2.0 client-credentials via Microsoft Graph), `ConfluenceService` (API-token Basic auth), `SyncSchedulerService` (dynamic setInterval), `ConnectorsService` (conflict resolution)
+- New env var: `CONNECTOR_ENCRYPTION_KEY` — generate with `openssl rand -hex 32`
+
+**Admin UI**
+- `/admin/connectors` — connector landing with status and conflict counts
+- `/admin/connectors/sharepoint` — credentials, sync scope, interval, test/sync buttons, sync log history
+- `/admin/connectors/confluence` — same for Confluence
+- `/admin/connectors/conflicts` — side-by-side diff viewer, Keep Local / Accept Remote / Edit Merged resolution
+
+**KB Admin enhancements**
+- Source badge on all articles (INTERNAL / SHAREPOINT / CONFLUENCE)
+- Export button on INTERNAL articles — exports to SharePoint or Confluence via modal
+
 ---
 
 ## Development Commands
@@ -493,7 +511,7 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 | Phase 2 (completion) | Filter + search on ticket list, agent assignment UI, file attachments (MinIO), backend + frontend unit tests | ✅ Complete |
 | Phase 3 | Routing rules engine, SLA policies, breach detection, configurable escalation, admin UI | ✅ Complete |
 | Phase 4a | Knowledge base — internal authoring (markdown), Elasticsearch search, inline ticket suggestions, deflection tracking | ✅ Complete |
-| Phase 4b | External KB connectors — SharePoint and Confluence bidirectional sync, OAuth flows, conflict resolution | 🔜 Planned |
+| Phase 4b | External KB connectors — SharePoint and Confluence bidirectional sync, OAuth flows, conflict resolution | ✅ Complete |
 | Phase 5 | Notifications (Teams, email), manager dashboard widgets, Teams bot, email-to-ticket via Microsoft Graph | 🔜 Planned |
 
 ---
