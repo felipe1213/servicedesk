@@ -51,100 +51,124 @@ export class NotificationService {
 
   @OnEvent('ticket.created')
   async handleTicketCreated(event: TicketCreatedPayload): Promise<void> {
-    if (!(await this.configService.isEventEnabled('notification.event.ticket_created'))) return;
+    try {
+      if (!(await this.configService.isEventEnabled('notification.event.ticket_created'))) return;
 
-    const title = `Ticket created: ${event.title}`;
-    const body = `Your ticket '${event.title}' has been received and will be reviewed shortly.`;
-    await this.notify(event.createdById, event.createdBy?.email ?? null, title, body, event.id);
+      const title = `Ticket created: ${event.title}`;
+      const body = `Your ticket '${event.title}' has been received and will be reviewed shortly.`;
+      await this.notify(event.createdById, event.createdBy?.email ?? null, title, body, event.id);
+    } catch (err) {
+      this.logger.error('handleTicketCreated failed', err);
+    }
   }
 
   @OnEvent('ticket.assigned')
   async handleTicketAssigned(event: TicketAssignedPayload): Promise<void> {
-    if (!(await this.configService.isEventEnabled('notification.event.ticket_assigned'))) return;
+    try {
+      if (!(await this.configService.isEventEnabled('notification.event.ticket_assigned'))) return;
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: event.assignedToId },
-      select: { id: true, email: true },
-    });
-    if (!user) return;
+      const user = await this.prisma.user.findUnique({
+        where: { id: event.assignedToId },
+        select: { id: true, email: true },
+      });
+      if (!user) return;
 
-    const title = `Ticket assigned to you: ${event.title}`;
-    const body = `You have been assigned ticket '${event.title}'.`;
-    await this.notify(user.id, user.email, title, body, event.ticketId);
+      const title = `Ticket assigned to you: ${event.title}`;
+      const body = `You have been assigned ticket '${event.title}'.`;
+      await this.notify(user.id, user.email, title, body, event.ticketId);
+    } catch (err) {
+      this.logger.error('handleTicketAssigned failed', err);
+    }
   }
 
   @OnEvent('ticket.commented')
   async handleTicketCommented(event: TicketCommentedPayload): Promise<void> {
-    if (!(await this.configService.isEventEnabled('notification.event.ticket_commented'))) return;
+    try {
+      if (!(await this.configService.isEventEnabled('notification.event.ticket_commented'))) return;
 
-    const ids = [...new Set([event.creatorId, event.assignedToId].filter(Boolean) as string[])];
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, email: true },
-    });
+      const ids = [...new Set([event.creatorId, event.assignedToId].filter(Boolean) as string[])];
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, email: true },
+      });
 
-    const title = `New comment on: ${event.title}`;
-    const body = `A new comment was posted on ticket '${event.title}'.`;
-    await Promise.all(users.map((u) => this.notify(u.id, u.email, title, body, event.ticketId)));
+      const title = `New comment on: ${event.title}`;
+      const body = `A new comment was posted on ticket '${event.title}'.`;
+      await Promise.allSettled(users.map((u) => this.notify(u.id, u.email, title, body, event.ticketId)));
+    } catch (err) {
+      this.logger.error('handleTicketCommented failed', err);
+    }
   }
 
   @OnEvent('ticket.status_changed')
   async handleStatusChanged(event: TicketStatusChangedPayload): Promise<void> {
-    if (!(await this.configService.isEventEnabled('notification.event.ticket_status_changed'))) return;
+    try {
+      if (!(await this.configService.isEventEnabled('notification.event.ticket_status_changed'))) return;
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: event.creatorId },
-      select: { id: true, email: true },
-    });
-    if (!user) return;
+      const user = await this.prisma.user.findUnique({
+        where: { id: event.creatorId },
+        select: { id: true, email: true },
+      });
+      if (!user) return;
 
-    const title = `Ticket status updated: ${event.title}`;
-    const body = `Ticket '${event.title}' status changed to ${event.status.replace(/_/g, ' ')}.`;
-    await this.notify(user.id, user.email, title, body, event.ticketId);
+      const title = `Ticket status updated: ${event.title}`;
+      const body = `Ticket '${event.title}' status changed to ${event.status.replace(/_/g, ' ')}.`;
+      await this.notify(user.id, user.email, title, body, event.ticketId);
+    } catch (err) {
+      this.logger.error('handleStatusChanged failed', err);
+    }
   }
 
   @OnEvent('ticket.resolved')
   async handleTicketResolved(event: TicketResolvedPayload): Promise<void> {
-    if (!(await this.configService.isEventEnabled('notification.event.ticket_status_changed'))) return;
+    try {
+      if (!(await this.configService.isEventEnabled('notification.event.ticket_status_changed'))) return;
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: event.creatorId },
-      select: { id: true, email: true },
-    });
-    if (!user) return;
+      const user = await this.prisma.user.findUnique({
+        where: { id: event.creatorId },
+        select: { id: true, email: true },
+      });
+      if (!user) return;
 
-    const title = `Ticket resolved: ${event.title}`;
-    const body = `Your ticket '${event.title}' has been resolved.`;
-    await this.notify(user.id, user.email, title, body, event.ticketId);
+      const title = `Ticket resolved: ${event.title}`;
+      const body = `Your ticket '${event.title}' has been resolved.`;
+      await this.notify(user.id, user.email, title, body, event.ticketId);
+    } catch (err) {
+      this.logger.error('handleTicketResolved failed', err);
+    }
   }
 
   @OnEvent('sla.breached')
   async handleSlaBreached(event: SlaBreachedPayload): Promise<void> {
-    if (!(await this.configService.isEventEnabled('notification.event.sla_breach'))) return;
+    try {
+      if (!(await this.configService.isEventEnabled('notification.event.sla_breach'))) return;
 
-    const managers = await this.prisma.user.findMany({
-      where: { role: Role.MANAGER },
-      select: { id: true, email: true },
-    });
-
-    const recipientMap = new Map<string, string | null>(
-      managers.map((m) => [m.id, m.email]),
-    );
-
-    if (event.assignedToId) {
-      const assignee = await this.prisma.user.findUnique({
-        where: { id: event.assignedToId },
+      const managers = await this.prisma.user.findMany({
+        where: { role: Role.MANAGER },
         select: { id: true, email: true },
       });
-      if (assignee) recipientMap.set(assignee.id, assignee.email);
-    }
 
-    const title = `SLA breached: ${event.title}`;
-    const body = `Ticket '${event.title}' has breached its SLA deadline.`;
-    await Promise.all(
-      [...recipientMap.entries()].map(([userId, email]) =>
-        this.notify(userId, email, title, body, event.ticketId),
-      ),
-    );
+      const recipientMap = new Map<string, string | null>(
+        managers.map((m) => [m.id, m.email]),
+      );
+
+      if (event.assignedToId) {
+        const assignee = await this.prisma.user.findUnique({
+          where: { id: event.assignedToId },
+          select: { id: true, email: true },
+        });
+        if (assignee) recipientMap.set(assignee.id, assignee.email);
+      }
+
+      const title = `SLA breached: ${event.title}`;
+      const body = `Ticket '${event.title}' has breached its SLA deadline.`;
+      await Promise.allSettled(
+        [...recipientMap.entries()].map(([userId, email]) =>
+          this.notify(userId, email, title, body, event.ticketId),
+        ),
+      );
+    } catch (err) {
+      this.logger.error('handleSlaBreached failed', err);
+    }
   }
 }
