@@ -80,6 +80,7 @@ model User {
   auditLogs            AuditLog[]
   attachments          Attachment[]
   dashboardConfig      DashboardConfig?
+  notifications        Notification[]
   routingRulesAssigned RoutingRule[]   @relation("RoutingRuleAgent")
   kbArticles           KbArticle[]     @relation("KbArticleAuthor")
   slaPoliciesEscalateUser SlaPolicy[] @relation("SlaEscalateToUser")
@@ -258,6 +259,20 @@ model AppConfig {
   key       String   @unique
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  body      String
+  ticketId  String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, read])
 }
 
 model KbSyncLog {
