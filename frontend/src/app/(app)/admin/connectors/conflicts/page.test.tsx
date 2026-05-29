@@ -23,9 +23,11 @@ const mockConflicts = [
 beforeEach(() => {
   (useSession as jest.Mock).mockReturnValue({ data: { accessToken: 'tok' } });
 
-  global.fetch = jest.fn().mockResolvedValue({
-    ok: true,
-    json: () => Promise.resolve(mockConflicts),
+  global.fetch = jest.fn().mockImplementation((url: string, opts?: RequestInit) => {
+    if (opts?.method === 'POST') {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockConflicts) });
   }) as any;
 });
 
@@ -48,5 +50,11 @@ describe('ConflictsPage', () => {
       const buttons = screen.getAllByRole('button', { name: /review/i });
       expect(buttons).toHaveLength(2);
     });
+  });
+
+  it('shows empty state when there are no conflicts', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) });
+    render(<ConflictsPage />);
+    await waitFor(() => expect(screen.getByText(/no conflicts/i)).toBeInTheDocument());
   });
 });
