@@ -64,7 +64,7 @@ export default function SharePointPage() {
     setTesting(true); setTestResult(null);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/connectors/sharepoint/test`, { method: 'POST', headers: authHeaders() });
-      setTestResult(await res.json());
+      setTestResult(res.ok ? await res.json() : { ok: false, message: 'Connection test failed' });
     } finally { setTesting(false); }
   }
 
@@ -76,6 +76,8 @@ export default function SharePointPage() {
         const log: SyncLog = await res.json();
         setSyncResult(`Done — ${log.articlesNew} new, ${log.articlesUpdated} updated, ${log.conflicts} conflicts`);
         await load();
+      } else {
+        setSyncResult('Sync failed');
       }
     } finally { setSyncing(false); }
   }

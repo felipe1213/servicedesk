@@ -21,10 +21,10 @@ export default function ConnectorsPage() {
 
   useEffect(() => {
     if (!session) return;
-    const auth = { Authorization: `Bearer ${(session as any)?.accessToken}` };
     const api = process.env.NEXT_PUBLIC_API_URL;
 
     async function load() {
+      const auth = { Authorization: `Bearer ${(session as any)?.accessToken}` };
       const [spRes, cfRes, conflictsRes, logsRes] = await Promise.all([
         fetch(`${api}/connectors/sharepoint/config`, { headers: auth }),
         fetch(`${api}/connectors/confluence/config`, { headers: auth }),
