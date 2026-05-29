@@ -6,8 +6,8 @@ export default function AdminPage() {
   return (
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>Admin</h1>
-      <p style={{ color: '#64748b', marginBottom: 32 }}>Configure routing rules, SLA policies, and knowledge base articles.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 20, maxWidth: 1200 }}>
+      <p style={{ color: '#64748b', marginBottom: 32 }}>Configure routing rules, SLA policies, knowledge base articles, external connectors, and dashboard defaults.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 20, maxWidth: 1400 }}>
         <Link href="/admin/routing-rules" style={{ textDecoration: 'none' }}>
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 24, cursor: 'pointer' }}>
             <div style={{ fontWeight: 600, fontSize: 16, color: '#0f172a', marginBottom: 8 }}>Routing Rules</div>
@@ -30,6 +30,12 @@ export default function AdminPage() {
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 24, cursor: 'pointer' }}>
             <div style={{ fontWeight: 600, fontSize: 16, color: '#0f172a', marginBottom: 8 }}>Connectors</div>
             <div style={{ color: '#64748b', fontSize: 14 }}>Sync articles with SharePoint and Confluence.</div>
+          </div>
+        </Link>
+        <Link href="/admin/dashboard-defaults" style={{ textDecoration: 'none' }}>
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 24, cursor: 'pointer' }}>
+            <div style={{ fontWeight: 600, fontSize: 16, color: '#0f172a', marginBottom: 8 }}>Dashboard Defaults</div>
+            <div style={{ color: '#64748b', fontSize: 14 }}>Set the default widget layout for each role.</div>
           </div>
         </Link>
       </div>
