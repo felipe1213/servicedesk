@@ -1,0 +1,150 @@
+// backend/src/modules/notifications/notification.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { Role } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from './email.service';
+import { NotificationConfigService } from './notification-config.service';
+
+type TicketCreatedPayload = {
+  id: string;
+  title: string;
+  createdById: string;
+  createdBy: { id: string; name: string; email: string };
+};
+type TicketAssignedPayload = { ticketId: string; assignedToId: string; title: string };
+type TicketCommentedPayload = {
+  ticketId: string; commentId: string; authorId: string;
+  title: string; creatorId: string; assignedToId: string | null;
+};
+type TicketStatusChangedPayload = {
+  ticketId: string; status: string; title: string;
+  creatorId: string; assignedToId: string | null;
+};
+type TicketResolvedPayload = { ticketId: string; title: string; creatorId: string };
+type SlaBreachedPayload = { ticketId: string; assignedToId: string | null; title: string };
+
+@Injectable()
+export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: NotificationConfigService,
+    private readonly emailService: EmailService,
+  ) {}
+
+  private async notify(
+    userId: string,
+    email: string | null,
+    title: string,
+    body: string,
+    ticketId?: string,
+  ) {
+    await this.prisma.notification.create({ data: { userId, title, body, ticketId } });
+    if (email) {
+      await this.emailService.send(email, title, body).catch((err) =>
+        this.logger.error(`Email to ${email} failed`, err),
+      );
+    }
+  }
+
+  @OnEvent('ticket.created')
+  async handleTicketCreated(event: TicketCreatedPayload): Promise<void> {
+    if (!(await this.configService.isEventEnabled('notification.event.ticket_created'))) return;
+
+    const title = `Ticket created: ${event.title}`;
+    const body = `Your ticket '${event.title}' has been received and will be reviewed shortly.`;
+    await this.notify(event.createdById, event.createdBy?.email ?? null, title, body, event.id);
+  }
+
+  @OnEvent('ticket.assigned')
+  async handleTicketAssigned(event: TicketAssignedPayload): Promise<void> {
+    if (!(await this.configService.isEventEnabled('notification.event.ticket_assigned'))) return;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: event.assignedToId },
+      select: { id: true, email: true },
+    });
+    if (!user) return;
+
+    const title = `Ticket assigned to you: ${event.title}`;
+    const body = `You have been assigned ticket '${event.title}'.`;
+    await this.notify(user.id, user.email, title, body, event.ticketId);
+  }
+
+  @OnEvent('ticket.commented')
+  async handleTicketCommented(event: TicketCommentedPayload): Promise<void> {
+    if (!(await this.configService.isEventEnabled('notification.event.ticket_commented'))) return;
+
+    const ids = [...new Set([event.creatorId, event.assignedToId].filter(Boolean) as string[])];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, email: true },
+    });
+
+    const title = `New comment on: ${event.title}`;
+    const body = `A new comment was posted on ticket '${event.title}'.`;
+    await Promise.all(users.map((u) => this.notify(u.id, u.email, title, body, event.ticketId)));
+  }
+
+  @OnEvent('ticket.status_changed')
+  async handleStatusChanged(event: TicketStatusChangedPayload): Promise<void> {
+    if (!(await this.configService.isEventEnabled('notification.event.ticket_status_changed'))) return;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: event.creatorId },
+      select: { id: true, email: true },
+    });
+    if (!user) return;
+
+    const title = `Ticket status updated: ${event.title}`;
+    const body = `Ticket '${event.title}' status changed to ${event.status.replace(/_/g, ' ')}.`;
+    await this.notify(user.id, user.email, title, body, event.ticketId);
+  }
+
+  @OnEvent('ticket.resolved')
+  async handleTicketResolved(event: TicketResolvedPayload): Promise<void> {
+    if (!(await this.configService.isEventEnabled('notification.event.ticket_status_changed'))) return;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: event.creatorId },
+      select: { id: true, email: true },
+    });
+    if (!user) return;
+
+    const title = `Ticket resolved: ${event.title}`;
+    const body = `Your ticket '${event.title}' has been resolved.`;
+    await this.notify(user.id, user.email, title, body, event.ticketId);
+  }
+
+  @OnEvent('sla.breached')
+  async handleSlaBreached(event: SlaBreachedPayload): Promise<void> {
+    if (!(await this.configService.isEventEnabled('notification.event.sla_breach'))) return;
+
+    const managers = await this.prisma.user.findMany({
+      where: { role: Role.MANAGER },
+      select: { id: true, email: true },
+    });
+
+    const recipientMap = new Map<string, string | null>(
+      managers.map((m) => [m.id, m.email]),
+    );
+
+    if (event.assignedToId) {
+      const assignee = await this.prisma.user.findUnique({
+        where: { id: event.assignedToId },
+        select: { id: true, email: true },
+      });
+      if (assignee) recipientMap.set(assignee.id, assignee.email);
+    }
+
+    const title = `SLA breached: ${event.title}`;
+    const body = `Ticket '${event.title}' has breached its SLA deadline.`;
+    await Promise.all(
+      [...recipientMap.entries()].map(([userId, email]) =>
+        this.notify(userId, email, title, body, event.ticketId),
+      ),
+    );
+  }
+}
