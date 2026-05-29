@@ -262,7 +262,7 @@ model AppConfig {
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   title     String
