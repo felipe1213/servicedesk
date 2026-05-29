@@ -9,6 +9,7 @@ interface KbArticle {
   tags: string[]; viewCount: number; slug: string;
   publishedAt: string | null; updatedAt: string;
   author: { name: string } | null;
+  source: string; externalUrl?: string;
 }
 
 const emptyForm = () => ({ title: '', body: '', tags: '', status: 'DRAFT' as 'DRAFT' | 'PUBLISHED' });
@@ -22,6 +23,9 @@ export default function AdminKbPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [preview, setPreview] = useState(false);
+  const [exportModal, setExportModal] = useState<{ articleId: string; title: string } | null>(null);
+  const [exportConnector, setExportConnector] = useState<'SHAREPOINT' | 'CONFLUENCE'>('SHAREPOINT');
+  const [exporting, setExporting] = useState(false);
 
   function authHeaders() {
     return {
@@ -86,6 +90,20 @@ export default function AdminKbPage() {
       headers: { Authorization: `Bearer ${(session as any)?.accessToken}` },
     });
     load();
+  }
+
+  async function exportArticle() {
+    if (!exportModal) return;
+    setExporting(true);
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/connectors/export/${exportModal.articleId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${(session as any)?.accessToken}` },
+        body: JSON.stringify({ connector: exportConnector }),
+      });
+      setExportModal(null);
+      await load();
+    } finally { setExporting(false); }
   }
 
   return (
@@ -185,6 +203,13 @@ export default function AdminKbPage() {
                     }}>
                       {a.status}
                     </span>
+                    {a.source !== 'INTERNAL' && (
+                      <span style={{ marginLeft: 6, fontSize: 11, padding: '2px 6px', borderRadius: 10,
+                        background: a.source === 'SHAREPOINT' ? '#dbeafe' : '#ccfbf1',
+                        color: a.source === 'SHAREPOINT' ? '#1d4ed8' : '#0d9488', fontWeight: 600 }}>
+                        {a.source}
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '12px 16px', color: '#64748b' }}>{a.tags.join(', ') || '—'}</td>
                   <td style={{ padding: '12px 16px', color: '#64748b' }}>{a.author?.name ?? '—'}</td>
@@ -195,6 +220,12 @@ export default function AdminKbPage() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => handleEdit(a)} style={ghostBtn}>Edit</button>
                       <button onClick={() => handleDelete(a.id)} style={{ ...ghostBtn, color: '#ef4444' }}>Delete</button>
+                      {a.source === 'INTERNAL' && (
+                        <button onClick={() => setExportModal({ articleId: a.id, title: a.title })}
+                          style={{ marginLeft: 6, padding: '3px 10px', fontSize: 12, background: '#f1f5f9', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer' }}>
+                          Export
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -208,6 +239,33 @@ export default function AdminKbPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {exportModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#fff', borderRadius: 8, padding: 32, width: 400 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Export Article</h2>
+            <p style={{ color: '#64748b', marginBottom: 16, fontSize: 14 }}>{exportModal.title}</p>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ marginRight: 16 }}>
+                <input type="radio" value="SHAREPOINT" checked={exportConnector === 'SHAREPOINT'} onChange={() => setExportConnector('SHAREPOINT')} /> SharePoint
+              </label>
+              <label>
+                <input type="radio" value="CONFLUENCE" checked={exportConnector === 'CONFLUENCE'} onChange={() => setExportConnector('CONFLUENCE')} /> Confluence
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={exportArticle} disabled={exporting}
+                style={{ padding: '8px 20px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                {exporting ? 'Exporting…' : 'Export'}
+              </button>
+              <button onClick={() => setExportModal(null)}
+                style={{ padding: '8px 20px', background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
