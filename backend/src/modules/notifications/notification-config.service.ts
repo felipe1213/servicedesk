@@ -37,7 +37,9 @@ export class NotificationConfigService {
   }
 
   private decrypt(stored: string): string {
-    const [ivHex, authTagHex, encryptedHex] = stored.split(':');
+    const parts = stored.split(':');
+    if (parts.length !== 3) throw new Error('Malformed ciphertext — expected iv:authTag:ciphertext');
+    const [ivHex, authTagHex, encryptedHex] = parts;
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
     const encrypted = Buffer.from(encryptedHex, 'hex');
@@ -106,11 +108,6 @@ export class NotificationConfigService {
 
   async saveEmailConfig(dto: UpdateEmailConfigDto): Promise<void> {
     const { transport } = dto;
-    await this.prisma.appConfig.upsert({
-      where: { key: 'notification.email.transport' },
-      create: { key: 'notification.email.transport', value: transport },
-      update: { value: transport },
-    });
 
     if (transport === 'SMTP') {
       if (!dto.host || !dto.port || dto.secure === undefined || !dto.user || !dto.pass || !dto.fromAddress) {
@@ -120,6 +117,11 @@ export class NotificationConfigService {
         host: dto.host, port: dto.port, secure: dto.secure,
         user: dto.user, pass: this.encrypt(dto.pass), fromAddress: dto.fromAddress,
       };
+      await this.prisma.appConfig.upsert({
+        where: { key: 'notification.email.transport' },
+        create: { key: 'notification.email.transport', value: transport },
+        update: { value: transport },
+      });
       await this.prisma.appConfig.upsert({
         where: { key: 'notification.email.smtp' },
         create: { key: 'notification.email.smtp', value: JSON.stringify(toStore) },
@@ -134,9 +136,21 @@ export class NotificationConfigService {
         clientSecret: this.encrypt(dto.clientSecret), fromAddress: dto.fromAddress,
       };
       await this.prisma.appConfig.upsert({
+        where: { key: 'notification.email.transport' },
+        create: { key: 'notification.email.transport', value: transport },
+        update: { value: transport },
+      });
+      await this.prisma.appConfig.upsert({
         where: { key: 'notification.email.graph' },
         create: { key: 'notification.email.graph', value: JSON.stringify(toStore) },
         update: { value: JSON.stringify(toStore) },
+      });
+    } else {
+      // transport === 'NONE'
+      await this.prisma.appConfig.upsert({
+        where: { key: 'notification.email.transport' },
+        create: { key: 'notification.email.transport', value: transport },
+        update: { value: transport },
       });
     }
   }
