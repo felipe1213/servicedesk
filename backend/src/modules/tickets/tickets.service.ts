@@ -128,6 +128,21 @@ export class TicketsService {
           newValue: effectiveNewStatus,
         },
       });
+      if (effectiveNewStatus === TicketStatus.RESOLVED) {
+        this.eventEmitter.emit('ticket.resolved', {
+          ticketId: id,
+          title: updated.title,
+          creatorId: ticket.createdById,
+        });
+      } else {
+        this.eventEmitter.emit('ticket.status_changed', {
+          ticketId: id,
+          status: effectiveNewStatus,
+          title: updated.title,
+          creatorId: ticket.createdById,
+          assignedToId: updated.assignedToId,
+        });
+      }
     }
 
     if (dto.assignedToId && dto.assignedToId !== ticket.assignedToId) {
@@ -138,6 +153,11 @@ export class TicketsService {
           action: 'ASSIGNED',
           newValue: (updated.assignedTo as { name: string } | null)?.name ?? dto.assignedToId,
         },
+      });
+      this.eventEmitter.emit('ticket.assigned', {
+        ticketId: id,
+        assignedToId: dto.assignedToId,
+        title: updated.title,
       });
     }
 
@@ -151,10 +171,21 @@ export class TicketsService {
 
     const isInternal = user.role !== Role.END_USER ? (dto.isInternal ?? false) : false;
 
-    return this.prisma.comment.create({
+    const comment = await this.prisma.comment.create({
       data: { ticketId, authorId: user.id, body: dto.body, isInternal },
       include: { author: { select: { id: true, name: true, email: true } } },
     });
+
+    this.eventEmitter.emit('ticket.commented', {
+      ticketId,
+      commentId: comment.id,
+      authorId: user.id,
+      title: ticket.title,
+      creatorId: ticket.createdById,
+      assignedToId: ticket.assignedToId,
+    });
+
+    return comment;
   }
 
   async getStats() {
