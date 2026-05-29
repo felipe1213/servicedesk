@@ -2,6 +2,7 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BreachAction, Priority, TicketStatus } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSlaPolicyDto } from './dto/create-sla-policy.dto';
 import { UpdateSlaPolicyDto } from './dto/update-sla-policy.dto';
@@ -16,7 +17,10 @@ type TicketForSla = {
 export class SlaService {
   private readonly logger = new Logger(SlaService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   findAll() {
     return this.prisma.slaPolicy.findMany({ orderBy: { priorityLevel: 'asc' } });
@@ -106,6 +110,12 @@ export class SlaService {
               await tx.ticket.update({ where: { id: ticket.id }, data: updateData });
             }
           }
+        });
+
+        this.eventEmitter.emit('sla.breached', {
+          ticketId: ticket.id,
+          assignedToId: ticket.assignedToId,
+          title: ticket.title,
         });
       } catch (err) {
         this.logger.error(`Failed to process breach for ticket ${ticket.id}`, err);

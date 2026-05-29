@@ -2,6 +2,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { BreachAction, Priority, TicketStatus } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SlaService } from './sla.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -29,6 +30,7 @@ describe('SlaService', () => {
       providers: [
         SlaService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
     service = module.get<SlaService>(SlaService);
