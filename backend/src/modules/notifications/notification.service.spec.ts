@@ -71,6 +71,11 @@ describe('NotificationService', () => {
       title: 'Issue', creatorId: 'user-1', assignedToId: 'user-1',
     });
 
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['user-1'] } },
+      }),
+    );
     expect(prisma.notification.create).toHaveBeenCalledTimes(1);
     expect(emailService.send).toHaveBeenCalledTimes(1);
   });
@@ -85,6 +90,11 @@ describe('NotificationService', () => {
 
     await service.handleSlaBreached({ ticketId: 't1', assignedToId: 'agent-1', title: 'SLA' });
 
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { role: Role.MANAGER },
+      }),
+    );
     // 2 managers + 1 assignee = 3 unique recipients
     expect(prisma.notification.create).toHaveBeenCalledTimes(3);
     expect(emailService.send).toHaveBeenCalledTimes(3);
@@ -94,6 +104,10 @@ describe('NotificationService', () => {
 describe('EmailService', () => {
   let service: EmailService;
   let configService: jest.Mocked<NotificationConfigService>;
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
   beforeEach(async () => {
     configService = { getEmailConfig: jest.fn() } as any;
