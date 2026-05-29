@@ -14,6 +14,7 @@ export default function ConflictsPage() {
   const [conflicts, setConflicts] = useState<ConflictArticle[]>([]);
   const [selected, setSelected] = useState<ConflictArticle | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [mergedBody, setMergedBody] = useState('');
 
@@ -28,20 +29,22 @@ export default function ConflictsPage() {
 
   useEffect(() => { if (session) load().catch(() => {}); }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function resolve(articleId: string, resolution: 'LOCAL' | 'REMOTE' | 'MERGED', merged?: string) {
+  async function resolve(articleId: string, resolution: 'LOCAL' | 'REMOTE' | 'MERGED', body?: string) {
     setResolving(true);
+    setResolveError(null);
     try {
-      const body: { resolution: string; mergedBody?: string } = { resolution };
-      if (resolution === 'MERGED' && merged !== undefined) body.mergedBody = merged;
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/connectors/conflicts/${articleId}/resolve`, {
-        method: 'POST', headers: authHeaders(), body: JSON.stringify(body),
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ resolution, ...(body ? { mergedBody: body } : {}) }),
       });
       if (res.ok) {
-        setSelected(null);
-        setEditMode(false);
-        setMergedBody('');
+        setSelected(null); setEditMode(false); setMergedBody('');
         await load();
+      } else {
+        setResolveError('Resolution failed. Please try again.');
       }
+    } catch {
+      setResolveError('Network error. Please try again.');
     } finally { setResolving(false); }
   }
 
@@ -132,25 +135,30 @@ export default function ConflictsPage() {
           </div>
 
           {!editMode ? (
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => resolve(selected.id, 'LOCAL')}
-                disabled={resolving}
-                style={{ padding: '8px 20px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-                {resolving ? 'Resolving…' : 'Keep Local'}
-              </button>
-              <button
-                onClick={() => resolve(selected.id, 'REMOTE')}
-                disabled={resolving}
-                style={{ padding: '8px 20px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-                {resolving ? 'Resolving…' : 'Accept Remote'}
-              </button>
-              <button
-                onClick={() => setEditMode(true)}
-                disabled={resolving}
-                style={{ padding: '8px 20px', background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-                Edit Merged
-              </button>
+            <div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => resolve(selected.id, 'LOCAL')}
+                  disabled={resolving}
+                  style={{ padding: '8px 20px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                  {resolving ? 'Resolving…' : 'Keep Local'}
+                </button>
+                <button
+                  onClick={() => resolve(selected.id, 'REMOTE')}
+                  disabled={resolving}
+                  style={{ padding: '8px 20px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                  {resolving ? 'Resolving…' : 'Accept Remote'}
+                </button>
+                <button
+                  onClick={() => setEditMode(true)}
+                  disabled={resolving}
+                  style={{ padding: '8px 20px', background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                  Edit Merged
+                </button>
+              </div>
+              {resolveError && (
+                <div style={{ marginTop: 8, color: '#dc2626', fontSize: 13 }}>{resolveError}</div>
+              )}
             </div>
           ) : (
             <div>
@@ -175,6 +183,9 @@ export default function ConflictsPage() {
                   Cancel
                 </button>
               </div>
+              {resolveError && (
+                <div style={{ marginTop: 8, color: '#dc2626', fontSize: 13 }}>{resolveError}</div>
+              )}
             </div>
           )}
         </div>

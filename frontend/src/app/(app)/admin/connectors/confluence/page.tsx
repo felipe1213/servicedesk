@@ -13,6 +13,7 @@ interface CFConfig {
 interface SyncLog {
   id: string; startedAt: string; completedAt?: string;
   status: string; articlesNew: number; articlesUpdated: number; conflicts: number;
+  connector: string;
 }
 
 const empty: CFConfig = { baseUrl: '', email: '', apiToken: '', syncType: 'space', enabled: false, syncIntervalMinutes: 60 };
@@ -44,7 +45,7 @@ export default function ConfluencePage() {
     }
     if (logsRes.ok) {
       const allLogs: SyncLog[] = await logsRes.json();
-      setLogs(allLogs.filter((l: any) => l.connector === 'CONFLUENCE').slice(0, 10));
+      setLogs(allLogs.filter(l => l.connector === 'CONFLUENCE').slice(0, 10));
     }
   }
 
@@ -155,7 +156,7 @@ export default function ConfluencePage() {
             style={{ padding: '8px 20px', background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
             {syncing ? 'Syncing…' : 'Sync Now'}
           </button>
-          {saveMsg && <span style={{ fontSize: 13, color: '#16a34a' }}>{saveMsg}</span>}
+          {saveMsg && <span style={{ fontSize: 13, color: saveMsg === 'Saved.' ? '#16a34a' : '#dc2626' }}>{saveMsg}</span>}
         </div>
 
         {testResult && (
