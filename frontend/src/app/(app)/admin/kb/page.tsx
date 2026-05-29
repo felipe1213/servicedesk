@@ -26,6 +26,7 @@ export default function AdminKbPage() {
   const [exportModal, setExportModal] = useState<{ articleId: string; title: string } | null>(null);
   const [exportConnector, setExportConnector] = useState<'SHAREPOINT' | 'CONFLUENCE'>('SHAREPOINT');
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   function authHeaders() {
     return {
@@ -95,14 +96,19 @@ export default function AdminKbPage() {
   async function exportArticle() {
     if (!exportModal) return;
     setExporting(true);
+    setExportError(null);
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/connectors/export/${exportModal.articleId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/connectors/export/${exportModal.articleId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${(session as any)?.accessToken}` },
+        headers: authHeaders(),
         body: JSON.stringify({ connector: exportConnector }),
       });
-      setExportModal(null);
-      await load();
+      if (res.ok) {
+        setExportModal(null);
+        await load();
+      } else {
+        setExportError('Export failed. Please check connector configuration.');
+      }
     } finally { setExporting(false); }
   }
 
@@ -260,11 +266,14 @@ export default function AdminKbPage() {
                 style={{ padding: '8px 20px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
                 {exporting ? 'Exporting…' : 'Export'}
               </button>
-              <button onClick={() => setExportModal(null)}
+              <button onClick={() => { setExportModal(null); setExportError(null); }}
                 style={{ padding: '8px 20px', background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>
                 Cancel
               </button>
             </div>
+            {exportError && (
+              <div style={{ marginTop: 8, color: '#dc2626', fontSize: 13 }}>{exportError}</div>
+            )}
           </div>
         </div>
       )}

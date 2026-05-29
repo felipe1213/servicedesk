@@ -16,8 +16,8 @@ import { useSession } from 'next-auth/react';
 const adminSession = { accessToken: 'tok', user: { role: 'ADMIN', email: 'admin@test.com' } };
 
 const mockArticles = [
-  { id: 'art-1', title: 'Reset Password', slug: 'reset-password-abc123', status: 'PUBLISHED', tags: ['auth'], body: 'Guide to reset password', viewCount: 5, publishedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), author: { name: 'Admin User' } },
-  { id: 'art-2', title: 'VPN Draft', slug: 'vpn-draft-xyz', status: 'DRAFT', tags: [], body: 'Draft content', viewCount: 0, publishedAt: null, updatedAt: new Date().toISOString(), author: null },
+  { id: 'art-1', title: 'Reset Password', slug: 'reset-password-abc123', status: 'PUBLISHED', tags: ['auth'], body: 'Guide to reset password', viewCount: 5, publishedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), author: { name: 'Admin User' }, source: 'INTERNAL' },
+  { id: 'art-2', title: 'VPN Draft', slug: 'vpn-draft-xyz', status: 'DRAFT', tags: [], body: 'Draft content', viewCount: 0, publishedAt: null, updatedAt: new Date().toISOString(), author: null, source: 'INTERNAL' },
 ];
 
 beforeEach(() => {
