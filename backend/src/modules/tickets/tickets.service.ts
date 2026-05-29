@@ -176,14 +176,16 @@ export class TicketsService {
       include: { author: { select: { id: true, name: true, email: true } } },
     });
 
-    this.eventEmitter.emit('ticket.commented', {
-      ticketId,
-      commentId: comment.id,
-      authorId: user.id,
-      title: ticket.title,
-      creatorId: ticket.createdById,
-      assignedToId: ticket.assignedToId,
-    });
+    if (!isInternal) {
+      this.eventEmitter.emit('ticket.commented', {
+        ticketId,
+        commentId: comment.id,
+        authorId: user.id,
+        title: ticket.title,
+        creatorId: ticket.createdById,
+        assignedToId: ticket.assignedToId,
+      });
+    }
 
     return comment;
   }

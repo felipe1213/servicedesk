@@ -85,4 +85,20 @@ describe('TicketsService events', () => {
       title: 'Test ticket', creatorId: 'creator-1', assignedToId: null,
     });
   });
+
+  it('emits both ticket.status_changed(ASSIGNED) and ticket.assigned when assigning a NEW ticket', async () => {
+    await service.update('ticket-1', { assignedToId: 'agent-1' }, mockUser);
+    expect(emitter.emit).toHaveBeenCalledWith('ticket.status_changed', {
+      ticketId: 'ticket-1', status: TicketStatus.ASSIGNED, title: 'Test ticket',
+      creatorId: 'creator-1', assignedToId: 'agent-1',
+    });
+    expect(emitter.emit).toHaveBeenCalledWith('ticket.assigned', {
+      ticketId: 'ticket-1', assignedToId: 'agent-1', title: 'Test ticket',
+    });
+  });
+
+  it('does not emit ticket.commented for internal comments', async () => {
+    await service.addComment('ticket-1', { body: 'internal note', isInternal: true }, { id: 'user-1', role: Role.AGENT });
+    expect(emitter.emit).not.toHaveBeenCalledWith('ticket.commented', expect.anything());
+  });
 });
