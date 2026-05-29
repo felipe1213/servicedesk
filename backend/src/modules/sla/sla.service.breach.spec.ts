@@ -60,4 +60,15 @@ describe('SlaService.checkBreaches — sla.breached event', () => {
     await service.checkBreaches();
     expect(emitter.emit).not.toHaveBeenCalled();
   });
+
+  it('emits sla.breached once per ticket when multiple tickets breach', async () => {
+    const ticket2 = { ...breachingTicket, id: 'ticket-2', title: 'Second breach', assignedToId: null };
+    prisma.ticket.findMany.mockResolvedValue([breachingTicket, ticket2]);
+
+    await service.checkBreaches();
+
+    expect(emitter.emit).toHaveBeenCalledTimes(2);
+    expect(emitter.emit).toHaveBeenCalledWith('sla.breached', expect.objectContaining({ ticketId: 'ticket-1' }));
+    expect(emitter.emit).toHaveBeenCalledWith('sla.breached', expect.objectContaining({ ticketId: 'ticket-2' }));
+  });
 });

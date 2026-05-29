@@ -112,9 +112,15 @@ export class SlaService {
           }
         });
 
+        const policy = ticket.slaPolicy;
+        const effectiveAssignedToId =
+          policy && (policy.breachAction === BreachAction.ESCALATE || policy.breachAction === BreachAction.BOTH) && policy.escalateToUserId
+            ? policy.escalateToUserId
+            : ticket.assignedToId;
+
         this.eventEmitter.emit('sla.breached', {
           ticketId: ticket.id,
-          assignedToId: ticket.assignedToId,
+          assignedToId: effectiveAssignedToId,
           title: ticket.title,
         });
       } catch (err) {
