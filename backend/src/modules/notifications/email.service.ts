@@ -73,9 +73,20 @@ export class EmailService {
           }),
         },
       );
-      const tokenData = (await tokenRes.json()) as { access_token: string };
 
-      await fetch(
+      if (!tokenRes.ok) {
+        const errBody = await tokenRes.text();
+        this.logger.error(`Graph token request failed (${tokenRes.status}): ${errBody}`);
+        return;
+      }
+
+      const tokenData = (await tokenRes.json()) as { access_token?: string };
+      if (!tokenData.access_token) {
+        this.logger.error('Graph token response missing access_token');
+        return;
+      }
+
+      const sendRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${cfg.fromAddress}/sendMail`,
         {
           method: 'POST',
@@ -92,6 +103,11 @@ export class EmailService {
           }),
         },
       );
+
+      if (!sendRes.ok) {
+        const errBody = await sendRes.text();
+        this.logger.error(`Graph sendMail failed to ${to} (${sendRes.status}): ${errBody}`);
+      }
     } catch (err) {
       this.logger.error(`Graph send failed to ${to}`, err);
     }
