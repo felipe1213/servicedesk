@@ -46,6 +46,7 @@ enum KbSource {
   INTERNAL
   SHAREPOINT
   CONFLUENCE
+  S3
 }
 
 enum BreachAction {
