@@ -28,12 +28,13 @@ An enterprise-scale help desk ticketing system built with NestJS and Next.js, in
 - **Full ticket lifecycle** — New → Assigned → In Progress → Pending → Resolved → Closed with audit trail on every transition
 - **SLA policies** — admin-configured response and resolution time targets per priority tier, breach detection and escalation
 - **Routing rules engine** — admin-configured rules match tickets by category, keyword, or channel and auto-assign to a team or agent
-- **Knowledge base** — internal article authoring, SharePoint and Confluence connectors, Elasticsearch full-text search, KB deflection tracking
+- **Knowledge base** — internal article authoring, SharePoint, Confluence, and Amazon S3 read-only connectors, Elasticsearch full-text search, KB deflection tracking
 - **Inbound email** — shared mailbox polling (IMAP or Microsoft Graph) converts incoming emails into tickets; replies thread back to the original ticket via `[#N]` subject tag; admin-configurable access control (anyone, approved domains, or specific users)
 - **Outbound notifications** — admin-controlled in-app inbox (bell with unread badge) and email delivery (SMTP or Microsoft Graph) triggered by ticket lifecycle events and SLA breaches
 - **Configurable dashboard** — live ticket overview with drag-and-drop widget reordering and visibility toggles; per-user layout with admin-settable role defaults
 - **Auth** — Entra ID SSO (Azure AD) and local username/password; JWT access + rotating refresh tokens
 - **Role-based access control** — Admin, Manager, Agent, End User enforced globally on all routes
+- **User management** — Admin can view all users, search by name/email, and change roles from the admin panel
 - **File attachments** — MinIO (S3-compatible) in Docker Compose; maps to Azure Blob Storage in production
 
 ---
@@ -79,6 +80,7 @@ The frontend proxies all backend calls through a Next.js rewrite (`/api/backend/
 | Email (SMTP) | Nodemailer |
 | Email (Graph) | Microsoft Graph API (client-credentials OAuth) |
 | Inbound Email (IMAP) | imapflow + mailparser |
+| S3 Connector | AWS SDK v3 (`@aws-sdk/client-s3`) + pdf-parse |
 | Auth (SSO) | MSAL + OAuth 2.0 (Entra ID / Azure AD) |
 | Auth (local) | bcrypt + JWT (access + refresh) |
 | Containerisation | Docker + Docker Compose |
@@ -135,7 +137,23 @@ The backend runs `prisma migrate deploy` automatically on startup — no manual 
 
 ### Creating the first admin user
 
-There is no seed file. Register a user through the API, then promote it to ADMIN via Postgres:
+A seed script creates three users automatically:
+
+| Email | Password | Role |
+|---|---|---|
+| admin@inktel.com | Admin123! | ADMIN |
+| agent@inktel.com | Agent123! | AGENT |
+| user@inktel.com | User123! | END_USER |
+
+To run the seed manually:
+
+```bash
+cd backend
+DATABASE_URL=postgresql://servicedesk:servicedesk_pass@localhost:5432/servicedesk \
+  npx ts-node -r tsconfig-paths/register prisma/seed.ts
+```
+
+Or to create users without the seed, register through the API then promote via Postgres:
 
 ```bash
 # 1. Register
@@ -362,6 +380,8 @@ All routes are protected by a global `JwtAuthGuard`. Endpoints decorated with `@
 | Method | Path | Roles |
 |---|---|---|
 | GET | `/users/agents` | AGENT+ |
+| GET | `/users` | ADMIN |
+| PATCH | `/users/:id/role` | ADMIN |
 
 ### Routing Rules (ADMIN or MANAGER)
 
@@ -399,11 +419,22 @@ All routes are protected by a global `JwtAuthGuard`. Endpoints decorated with `@
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/connectors/config` | Get connector configuration |
-| PUT | `/connectors/config` | Save connector credentials (AES-256-GCM encrypted) |
-| POST | `/connectors/sync` | Trigger manual sync |
+| GET | `/connectors/sharepoint/config` | Get SharePoint config (secret redacted) |
+| PUT | `/connectors/sharepoint/config` | Save SharePoint credentials |
+| POST | `/connectors/sharepoint/test` | Test SharePoint connection |
+| POST | `/connectors/sharepoint/sync` | Manual SharePoint sync |
+| GET | `/connectors/confluence/config` | Get Confluence config (token redacted) |
+| PUT | `/connectors/confluence/config` | Save Confluence credentials |
+| POST | `/connectors/confluence/test` | Test Confluence connection |
+| POST | `/connectors/confluence/sync` | Manual Confluence sync |
+| GET | `/connectors/s3/config` | Get S3 config (secret redacted) |
+| PUT | `/connectors/s3/config` | Save S3 credentials |
+| POST | `/connectors/s3/test` | Test S3 connection |
+| POST | `/connectors/s3/sync` | Manual S3 sync |
 | GET | `/connectors/conflicts` | List sync conflicts |
-| PATCH | `/connectors/conflicts/:id` | Resolve a conflict |
+| POST | `/connectors/conflicts/:articleId/resolve` | Resolve a conflict |
+| GET | `/connectors/logs` | Last 20 sync log entries |
+| POST | `/connectors/export/:articleId` | Export KB article to SharePoint or Confluence |
 
 ### Dashboard
 
@@ -494,7 +525,7 @@ docker compose down -v                      # Stop and wipe all data
 | `Attachment` | File metadata; binary stored in MinIO |
 | `SlaPolicy` | Per-priority response and resolution time targets |
 | `RoutingRule` | Ordered rules that auto-assign new tickets to a team or agent |
-| `KbArticle` | Knowledge base articles (INTERNAL / SHAREPOINT / CONFLUENCE source) |
+| `KbArticle` | Knowledge base articles (INTERNAL / SHAREPOINT / CONFLUENCE / S3 source) |
 | `KbDeflection` | Tracks when a KB article resolved a ticket |
 | `DashboardConfig` | Per-user widget layout stored as JSON |
 | `AppConfig` | Key/value store for admin-configurable settings (connector credentials, notification config) |
@@ -523,6 +554,8 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 | Phase 5a | Configurable dashboard — drag-and-drop widget reordering, per-user layouts, admin role defaults | ✅ Complete |
 | Phase 5b | Outbound notifications — in-app inbox (bell + badge), SMTP + Microsoft Graph email, 6 event types, admin config | ✅ Complete |
 | Phase 5c | Inbound email — IMAP + Microsoft Graph polling, email-to-ticket + reply threading, access control, attachments | ✅ Complete |
+| S3 Connector | Amazon S3 read-only KB connector — .md/.html/.txt/.pdf sync, ETag change detection, scheduled polling | 🔄 In Progress |
+| User Management | Admin panel — user list with search, inline role editing | ✅ Complete |
 
 ---
 
