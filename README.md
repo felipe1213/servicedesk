@@ -1,6 +1,6 @@
 # ServiceDesk
 
-An enterprise-scale help desk ticketing system built with NestJS and Next.js, inspired by ServiceNow. Supports ticket creation through a web portal, Microsoft Teams bot, and email; a knowledge base with internal authoring and external integrations; SLA tracking; and a configurable manager dashboard.
+An enterprise-scale help desk ticketing system built with NestJS and Next.js, inspired by ServiceNow. Supports ticket creation through a web portal, Microsoft Teams bot, and email; a knowledge base with internal authoring and external integrations; SLA tracking; a configurable manager dashboard; and outbound notifications via in-app inbox and email.
 
 ---
 
@@ -16,7 +16,9 @@ An enterprise-scale help desk ticketing system built with NestJS and Next.js, in
 - [Authentication](#authentication)
 - [API Reference](#api-reference)
 - [Development Commands](#development-commands)
-- [Planned Features](#planned-features)
+- [Database Schema](#database-schema)
+- [Build Status](#build-status)
+- [Production Path](#production-path)
 
 ---
 
@@ -27,7 +29,8 @@ An enterprise-scale help desk ticketing system built with NestJS and Next.js, in
 - **SLA policies** — admin-configured response and resolution time targets per priority tier, breach detection and escalation
 - **Routing rules engine** — admin-configured rules match tickets by category, keyword, or channel and auto-assign to a team or agent
 - **Knowledge base** — internal article authoring, SharePoint and Confluence connectors, Elasticsearch full-text search, KB deflection tracking
-- **Manager dashboard** — live ticket overview, SLA compliance, escalations, agent workload, trends; layout configurable per user and per role
+- **Outbound notifications** — admin-controlled in-app inbox (bell with unread badge) and email delivery (SMTP or Microsoft Graph) triggered by ticket lifecycle events and SLA breaches
+- **Configurable dashboard** — live ticket overview with drag-and-drop widget reordering and visibility toggles; per-user layout with admin-settable role defaults
 - **Auth** — Entra ID SSO (Azure AD) and local username/password; JWT access + rotating refresh tokens
 - **Role-based access control** — Admin, Manager, Agent, End User enforced globally on all routes
 - **File attachments** — MinIO (S3-compatible) in Docker Compose; maps to Azure Blob Storage in production
@@ -41,16 +44,18 @@ An enterprise-scale help desk ticketing system built with NestJS and Next.js, in
       \              |              /
        [NestJS API — Modular Monolith]
               |
-  ┌───────────────────────────────┐
-  │  Auth  │ Tickets │  Routing  │
-  │  SLA   │   KB    │  Notify   │
-  │        Admin/Config           │
-  └───────────────────────────────┘
+  ┌─────────────────────────────────────┐
+  │  Auth   │ Tickets  │    Routing     │
+  │  SLA    │   KB     │  Connectors   │
+  │  Notify │ Dashboard│    Users      │
+  └─────────────────────────────────────┘
         |           |          |
    PostgreSQL     Redis    Elasticsearch
 ```
 
 All three intake channels normalise into a single `TicketCreatedEvent` consumed by the Tickets module. Channel source is recorded on every ticket for reporting.
+
+The `NotificationsModule` subscribes to ticket lifecycle and SLA events via EventEmitter2. It checks admin-controlled toggles in `AppConfig`, writes `Notification` rows for the in-app inbox, and dispatches emails via a pluggable `EmailService` (SMTP via Nodemailer or Microsoft Graph via REST).
 
 The frontend proxies all backend calls through a Next.js rewrite (`/api/backend/*` → NestJS on port 4000), which avoids Docker hostname resolution issues on the client side.
 
@@ -70,7 +75,8 @@ The frontend proxies all backend calls through a Next.js rewrite (`/api/backend/
 | File Storage (local) | MinIO (S3-compatible) |
 | File Storage (prod) | Azure Blob Storage |
 | Teams Integration | Azure Bot Framework SDK |
-| Email Integration | Microsoft Graph API |
+| Email (SMTP) | Nodemailer |
+| Email (Graph) | Microsoft Graph API (client-credentials OAuth) |
 | Auth (SSO) | MSAL + OAuth 2.0 (Entra ID / Azure AD) |
 | Auth (local) | bcrypt + JWT (access + refresh) |
 | Containerisation | Docker + Docker Compose |
@@ -97,7 +103,7 @@ cd servicedesk
 cp .env.example .env
 
 # 3. Edit .env — at minimum, set these secrets:
-#    JWT_SECRET, JWT_REFRESH_SECRET, NEXTAUTH_SECRET
+#    JWT_SECRET, JWT_REFRESH_SECRET, NEXTAUTH_SECRET, CONNECTOR_ENCRYPTION_KEY
 #    (see Environment Variables section for all options)
 
 # 4. Start the full stack
@@ -140,7 +146,7 @@ docker exec servicedesk-postgres-1 psql -U servicedesk -d servicedesk \
   -c "UPDATE \"User\" SET role = 'ADMIN' WHERE email = 'admin@example.com';"
 ```
 
-Log in at http://localhost:3000 with `admin@example.com` / `Admin1234!` (or whatever password you chose). Admin and Manager roles see the **Admin** link in the sidebar for managing routing rules, SLA policies, and knowledge base articles. All authenticated users see the **Knowledge Base** link for browsing and searching published articles.
+Log in at http://localhost:3000. Admin and Manager roles see the **Admin** link in the sidebar for managing routing rules, SLA policies, knowledge base articles, connectors, dashboard defaults, and notification settings.
 
 ---
 
@@ -196,6 +202,12 @@ Copy `.env.example` to `.env` and fill in the values below.
 |---|---|---|
 | `ELASTICSEARCH_URL` | Elasticsearch URL | `http://elasticsearch:9200` |
 
+### Encryption (connectors + notification email credentials)
+
+| Variable | Description |
+|---|---|
+| `CONNECTOR_ENCRYPTION_KEY` | 64-character hex string (32 bytes) used for AES-256-GCM encryption of connector credentials and email transport credentials. Generate with: `openssl rand -hex 32` |
+
 ### Backend
 
 | Variable | Description | Default |
@@ -209,7 +221,7 @@ Copy `.env.example` to `.env` and fill in the values below.
 |---|---|---|
 | `NEXTAUTH_URL` | Canonical URL of the Next.js app | `http://localhost:3000` |
 | `NEXTAUTH_SECRET` | Signs NextAuth JWTs — **must be set** | — |
-| `NEXT_PUBLIC_API_URL` | Backend URL used by the browser (Next.js rewrite source) | `http://localhost:4000` |
+| `NEXT_PUBLIC_API_URL` | Backend URL used by the browser | `http://localhost:4000` |
 | `BACKEND_URL` | Backend URL used server-side (NextAuth login call inside the container) | `http://backend:4000` |
 
 ---
@@ -220,34 +232,30 @@ Copy `.env.example` to `.env` and fill in the values below.
 servicedesk/
 ├── backend/                    # NestJS modular monolith
 │   ├── prisma/
-│   │   ├── schema.prisma       # Database schema (11 models, 6 enums)
+│   │   ├── schema.prisma       # Database schema (13 models, 6 enums)
 │   │   └── migrations/         # Prisma migration files
 │   ├── src/
 │   │   ├── main.ts             # Bootstrap — ValidationPipe, CORS, shutdown hooks
 │   │   ├── app.module.ts       # Root module — global guards registered here
 │   │   ├── prisma/             # PrismaModule (@Global) + PrismaService
 │   │   └── modules/
-│   │       ├── auth/           # Auth module (Phase 1)
-│   │       │   ├── strategies/ # passport-local, passport-jwt
-│   │       │   ├── guards/     # JwtAuthGuard, LocalAuthGuard, RolesGuard
-│   │       │   ├── decorators/ # @Public(), @Roles()
-│   │       │   ├── dto/        # LoginDto, RegisterDto (class-validator)
-│   │       │   ├── auth.service.ts
-│   │       │   └── auth.controller.ts
-│   │       ├── tickets/        # Tickets module (Phase 2)
-│   │       │   ├── dto/        # CreateTicketDto, UpdateTicketDto, CreateCommentDto, FindTicketsQueryDto
-│   │       │   ├── tickets.service.ts
-│   │       │   └── tickets.controller.ts
-│   │       ├── attachments/    # File attachments — MinIO wrapper (Phase 2 completion)
-│   │       │   ├── attachments.service.ts
-│   │       │   └── attachments.controller.ts
-│   │       ├── users/          # Agent list endpoint (Phase 2 completion)
-│   │       │   ├── users.service.ts
-│   │       │   └── users.controller.ts
-│   │       └── kb/             # Knowledge base module (Phase 4a)
-│   │           ├── dto/        # CreateArticleDto, UpdateArticleDto
-│   │           ├── kb.service.ts
-│   │           └── kb.controller.ts
+│   │       ├── auth/           # Auth module — local + Entra ID, JWT, RBAC
+│   │       ├── tickets/        # Tickets — CRUD, state machine, comments, attachments, events
+│   │       ├── attachments/    # File attachments — MinIO wrapper
+│   │       ├── users/          # Agent list endpoint
+│   │       ├── sla/            # SLA policies, breach detection, escalation
+│   │       ├── routing/        # Routing rules engine
+│   │       ├── kb/             # Knowledge base — authoring, search, deflection
+│   │       ├── connectors/     # SharePoint + Confluence bidirectional sync
+│   │       ├── dashboard/      # Per-user widget layout, role defaults
+│   │       └── notifications/  # In-app inbox + SMTP/Graph email notifications
+│   │           ├── dto/        # UpdateEventConfigDto, UpdateEmailConfigDto, GetNotificationsQueryDto
+│   │           ├── email.service.ts
+│   │           ├── notification-config.service.ts
+│   │           ├── notification-config.controller.ts
+│   │           ├── notification.service.ts
+│   │           ├── notification.controller.ts
+│   │           └── notifications.module.ts
 │   ├── Dockerfile
 │   ├── nest-cli.json
 │   ├── tsconfig.json
@@ -260,28 +268,33 @@ servicedesk/
 │   │   │   ├── page.tsx        # Landing / redirect
 │   │   │   ├── auth/login/     # Login page
 │   │   │   ├── api/auth/[...nextauth]/  # NextAuth route handler
-│   │   │   └── (app)/          # Authenticated route group (Phase 2)
-│   │   │       ├── layout.tsx  # Sidebar nav layout
-│   │   │       ├── dashboard/  # Stats overview
+│   │   │   └── (app)/          # Authenticated route group
+│   │   │       ├── layout.tsx  # Sidebar nav + notification bell with unread badge
+│   │   │       ├── dashboard/  # Configurable widget dashboard (DnD reorder + show/hide)
 │   │   │       ├── tickets/    # Ticket list, new ticket, ticket detail
-│   │   │       ├── kb/         # Knowledge base browse + article view (Phase 4a)
-│   │   │       └── admin/      # Routing rules, SLA policies, KB management
+│   │   │       ├── kb/         # Knowledge base browse + article view
+│   │   │       ├── notifications/  # Full notification inbox
+│   │   │       └── admin/      # Admin pages
+│   │   │           ├── routing-rules/
+│   │   │           ├── sla-policies/
+│   │   │           ├── kb/
+│   │   │           ├── connectors/
+│   │   │           ├── dashboard-defaults/
+│   │   │           └── notifications/  # Event toggles + email delivery config
 │   │   ├── components/
-│   │   │   └── session-provider.tsx  # Client wrapper for NextAuth SessionProvider
-│   │   ├── lib/
-│   │   │   └── api.ts          # Axios instance (baseURL: /api/backend)
-│   │   ├── middleware.ts        # Route protection (/dashboard, /tickets, /admin)
+│   │   │   └── session-provider.tsx
+│   │   ├── middleware.ts        # Route protection
 │   │   └── types/
-│   │       ├── auth.ts         # Shared auth types
-│   │       └── next-auth.d.ts  # Session type augmentation (accessToken)
-│   ├── next.config.js          # Rewrite /api/backend/* → NestJS
+│   │       ├── auth.ts
+│   │       └── next-auth.d.ts
+│   ├── next.config.js
 │   ├── jest.config.ts
 │   ├── Dockerfile
 │   └── package.json
 │
 ├── docs/
 │   └── superpowers/
-│       ├── specs/              # Design specification
+│       ├── specs/              # Design specifications
 │       └── plans/              # Implementation plans
 │
 ├── docker-compose.yml          # 7-service stack
@@ -302,120 +315,129 @@ POST /auth/refresh    { refreshToken }            →  200 { accessToken, refres
 GET  /auth/me                                     →  200 { id, name, email, role, ... }
 ```
 
-- Passwords are hashed with bcrypt (cost 10); accepted length is 8–128 characters to prevent DoS via large bcrypt inputs.
+- Passwords are hashed with bcrypt (cost 10); accepted length is 8–128 characters.
 - Access tokens expire in 15 minutes; refresh tokens expire in 7 days.
-- The two JWT secrets are intentionally separate — a compromised access-token secret cannot be used to forge refresh tokens.
+- The two JWT secrets are intentionally separate.
 
-### Entra ID SSO (Azure AD)
+### Entra ID SSO
 
-Handled by NextAuth `AzureADProvider` on the frontend. On successful sign-in, NextAuth calls `POST /auth/entra` on the backend, which upserts the user by their Entra Object ID (`entraOid`). Identity is tied to the OID rather than the email address, which prevents account takeover if an email changes or is reused.
+Handled by NextAuth `AzureADProvider`. On sign-in, NextAuth calls `POST /auth/entra`, which upserts the user by Entra Object ID (`entraOid`).
 
 ### Role-based access control
 
 Four roles: `ADMIN`, `MANAGER`, `AGENT`, `END_USER`.
 
-All routes are protected by a global `JwtAuthGuard`. Endpoints decorated with `@Public()` bypass the JWT check (login, register, refresh). Role restrictions are applied with `@Roles(Role.ADMIN)` and enforced by the global `RolesGuard`.
+All routes are protected by a global `JwtAuthGuard`. Endpoints decorated with `@Public()` bypass the JWT check. Role restrictions use `@Roles(Role.ADMIN)` enforced by the global `RolesGuard`.
 
 ---
 
 ## API Reference
 
-### Auth endpoints (all public)
+### Auth (public)
 
-| Method | Path | Body | Response |
-|---|---|---|---|
-| POST | `/auth/register` | `{ name, email, password }` | `{ id, name, email, role, createdAt }` |
-| POST | `/auth/login` | `{ email, password }` | `{ accessToken, refreshToken }` |
-| POST | `/auth/refresh` | `{ refreshToken }` | `{ accessToken, refreshToken }` |
+| Method | Path | Body |
+|---|---|---|
+| POST | `/auth/register` | `{ name, email, password }` |
+| POST | `/auth/login` | `{ email, password }` |
+| POST | `/auth/refresh` | `{ refreshToken }` |
+| GET | `/auth/me` | — (protected) |
 
-### Auth endpoints (protected)
+### Tickets (all protected)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/tickets` | `{ title, description, priority?, category?, sourceChannel }` |
+| GET | `/tickets` | Query: `status?`, `priority?`, `search?`, `page?`, `limit?` — role-filtered |
+| GET | `/tickets/stats` | `{ total, byStatus, byPriority }` |
+| GET | `/tickets/:id` | Internal comments filtered for end users |
+| PATCH | `/tickets/:id` | Any subset of ticket fields |
+| POST | `/tickets/:id/comments` | `{ body, isInternal? }` |
+| GET | `/tickets/:id/attachments` | Presigned download URLs |
+| POST | `/tickets/:id/attachments` | Multipart upload, max 10 MB |
+
+### Users
+
+| Method | Path | Roles |
+|---|---|---|
+| GET | `/users/agents` | AGENT+ |
+
+### Routing Rules (ADMIN or MANAGER)
+
+| Method | Path |
+|---|---|
+| GET | `/routing-rules` |
+| POST | `/routing-rules` |
+| PATCH | `/routing-rules/reorder` |
+| PATCH | `/routing-rules/:id` |
+| DELETE | `/routing-rules/:id` |
+
+### SLA Policies (ADMIN only)
+
+| Method | Path |
+|---|---|
+| GET | `/sla-policies` |
+| POST | `/sla-policies` |
+| PATCH | `/sla-policies/:id` |
+| DELETE | `/sla-policies/:id` |
+
+### Knowledge Base
+
+| Method | Path | Roles |
+|---|---|---|
+| GET | `/kb` | All |
+| POST | `/kb` | ADMIN, MANAGER |
+| GET | `/kb/search?q=` | All |
+| GET | `/kb/suggest?ticketId=` | AGENT+ |
+| GET | `/kb/:id` | All |
+| PATCH | `/kb/:id` | ADMIN, MANAGER |
+| DELETE | `/kb/:id` | ADMIN |
+| POST | `/kb/:id/deflect` | All |
+
+### Connectors (ADMIN only)
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/auth/me` | Returns the authenticated user's profile |
+| GET | `/connectors/config` | Get connector configuration |
+| PUT | `/connectors/config` | Save connector credentials (AES-256-GCM encrypted) |
+| POST | `/connectors/sync` | Trigger manual sync |
+| GET | `/connectors/conflicts` | List sync conflicts |
+| PATCH | `/connectors/conflicts/:id` | Resolve a conflict |
 
-### Ticket endpoints (all protected — require Bearer token)
-
-| Method | Path | Body / Notes | Response |
-|---|---|---|---|
-| POST | `/tickets` | `{ title, description, priority?, category?, sourceChannel }` | Created ticket |
-| GET | `/tickets` | Query: `status?`, `priority?`, `search?`, `page?`, `limit?` — role-filtered | `{ data, total, page, limit }` |
-| GET | `/tickets/stats` | — | `{ total, byStatus, byPriority }` |
-| GET | `/tickets/:id` | — Internal comments filtered for end users | Full ticket with comments + audit log |
-| PATCH | `/tickets/:id` | Any subset of `{ title, description, priority, category, status, assignedToId }` | Updated ticket |
-| POST | `/tickets/:id/comments` | `{ body, isInternal? }` — `isInternal` ignored for end users | Created comment |
-| GET | `/tickets/:id/attachments` | — | Attachment list with presigned download URLs |
-| POST | `/tickets/:id/attachments` | Multipart file upload, max 10 MB | Created attachment record |
-
-### User endpoints (protected)
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/users/agents` | Returns `{ id, name, email }` for all agent-or-above users — used to populate assignee dropdowns. `END_USER` role receives 403. |
-
-### Routing Rules endpoints (ADMIN or MANAGER only)
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/routing-rules` | List all rules ordered by priorityOrder |
-| POST | `/routing-rules` | Create a routing rule |
-| PATCH | `/routing-rules/reorder` | Bulk-update rule order |
-| PATCH | `/routing-rules/:id` | Update a routing rule |
-| DELETE | `/routing-rules/:id` | Delete a routing rule |
-
-### SLA Policy endpoints (ADMIN only)
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/sla-policies` | List all SLA policies |
-| POST | `/sla-policies` | Create an SLA policy |
-| PATCH | `/sla-policies/:id` | Update an SLA policy |
-| DELETE | `/sla-policies/:id` | Delete an SLA policy |
-
-### Knowledge Base endpoints (Phase 4a)
+### Dashboard
 
 | Method | Path | Roles | Description |
 |---|---|---|---|
-| GET | `/kb` | All | List published articles (ADMIN/MANAGER see drafts too) |
-| POST | `/kb` | ADMIN, MANAGER | Create article |
-| GET | `/kb/search?q=` | All | Elasticsearch full-text search |
-| GET | `/kb/suggest?ticketId=` | AGENT+ | Top 5 article suggestions for a ticket |
-| GET | `/kb/:id` | All | View article (increments viewCount) |
-| PATCH | `/kb/:id` | ADMIN, MANAGER | Update article |
-| DELETE | `/kb/:id` | ADMIN | Delete article |
-| POST | `/kb/:id/deflect` | All | Log deflection (`{ type: 'AGENT'\|'END_USER', ticketId? }`) |
+| GET | `/dashboard/config` | All | Get caller's widget layout (personal → role default → hardcoded fallback) |
+| PUT | `/dashboard/config` | All | Save personal widget layout |
+| GET | `/dashboard/defaults/:role` | ADMIN | Get role default layout |
+| PUT | `/dashboard/defaults/:role` | ADMIN | Save role default layout |
 
-`sourceChannel` must be one of `WEB`, `TEAMS`, `EMAIL`.  
-`priority` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` (defaults to `MEDIUM`).  
-`status` must be one of `NEW`, `ASSIGNED`, `IN_PROGRESS`, `PENDING`, `RESOLVED`, `CLOSED`.
+### Notifications
 
-All protected endpoints require `Authorization: Bearer <accessToken>` in the request header.
+| Method | Path | Roles | Description |
+|---|---|---|---|
+| GET | `/notifications` | All | Fetch inbox — `limit` (default 50, max 100), `unread` (boolean) |
+| PATCH | `/notifications/read-all` | All | Mark all notifications read |
+| PATCH | `/notifications/:id/read` | All | Mark one notification read |
+| GET | `/notifications/config` | ADMIN | Get event toggle settings |
+| PUT | `/notifications/config` | ADMIN | Update event toggles |
+| GET | `/notifications/email-config` | ADMIN | Get email transport + redacted credentials |
+| PUT | `/notifications/email-config` | ADMIN | Save email transport + credentials |
+| POST | `/notifications/email-config/test` | ADMIN | Send a test email to the authenticated admin |
 
-Rate limiting is applied globally at 10 requests per minute per IP via `@nestjs/throttler`.
+#### Notification event toggles
 
-### Phase 4b — External KB Connectors (SharePoint + Confluence)
-
-Bidirectional sync between the KB and external platforms.
-
-**Backend**
-- `ConnectorsModule` — `ConnectorConfigService` (AES-256-GCM encrypted credentials), `SharePointService` (OAuth 2.0 client-credentials via Microsoft Graph), `ConfluenceService` (API-token Basic auth), `SyncSchedulerService` (dynamic setInterval), `ConnectorsService` (conflict resolution)
-- New env var: `CONNECTOR_ENCRYPTION_KEY` — generate with `openssl rand -hex 32`
-
-**Admin UI**
-- `/admin/connectors` — connector landing with status and conflict counts
-- `/admin/connectors/sharepoint` — credentials, sync scope, interval, test/sync buttons, sync log history
-- `/admin/connectors/confluence` — same for Confluence
-- `/admin/connectors/conflicts` — side-by-side diff viewer, Keep Local / Accept Remote / Edit Merged resolution
-
-**KB Admin enhancements**
-- Source badge on all articles (INTERNAL / SHAREPOINT / CONFLUENCE)
-- Export button on INTERNAL articles — exports to SharePoint or Confluence via modal
+| AppConfig key | Event |
+|---|---|
+| `notification.event.ticket_created` | Email confirmation to submitter on creation |
+| `notification.event.ticket_assigned` | In-app + email to assigned agent |
+| `notification.event.ticket_commented` | In-app + email to ticket participants |
+| `notification.event.ticket_status_changed` | In-app + email to creator on status change (includes resolved) |
+| `notification.event.sla_breach` | In-app + email to assignee and all MANAGER-role users |
 
 ---
 
 ## Development Commands
-
-Run commands inside the container or locally if you have Node 20 installed.
 
 ### Backend
 
@@ -432,9 +454,6 @@ npm run db:studio
 # Run tests
 npm test
 
-# Run tests in watch mode
-npm run test:watch
-
 # Run tests with coverage
 npm run test:cov
 ```
@@ -447,50 +466,37 @@ docker compose exec frontend sh
 
 # Run tests
 npm test
-
-# Run tests in watch mode
-npm run test:watch
 ```
 
 ### Docker Compose
 
 ```bash
-# Start all services (detached)
-docker compose up -d
-
-# Tail logs for a specific service
-docker compose logs -f backend
-
-# Rebuild a single service after code changes to its Dockerfile
-docker compose up -d --build backend
-
-# Stop and remove all containers (keeps volumes)
-docker compose down
-
-# Stop and remove all containers AND volumes (resets all data)
-docker compose down -v
+docker compose up -d                        # Start all services
+docker compose logs -f backend              # Tail backend logs
+docker compose up -d --build backend        # Rebuild one service
+docker compose down                         # Stop (keep volumes)
+docker compose down -v                      # Stop and wipe all data
 ```
 
 ---
 
 ## Database Schema
 
-Key models and relationships:
-
 | Model | Purpose |
 |---|---|
-| `User` | Accounts — local or Entra ID, with role and optional team membership |
-| `Team` | Groups of agents; tickets and routing rules can target a team |
+| `User` | Accounts — local or Entra ID, role, optional team membership |
+| `Team` | Groups of agents |
 | `Ticket` | Core entity — title, description, status, priority, source channel, SLA deadlines |
 | `Comment` | Thread on a ticket; `isInternal` separates agent notes from end-user messages |
 | `AuditLog` | Immutable record of every ticket state change |
+| `Attachment` | File metadata; binary stored in MinIO |
 | `SlaPolicy` | Per-priority response and resolution time targets |
 | `RoutingRule` | Ordered rules that auto-assign new tickets to a team or agent |
-| `KbArticle` | Knowledge base articles (internal, SharePoint, or Confluence source); status DRAFT/PUBLISHED, slug, viewCount |
-| `KbDeflection` | Tracks when a KB article resolved a ticket (AGENT) or satisfied an end user (END_USER) |
-| `Attachment` | File metadata; binary stored in MinIO |
+| `KbArticle` | Knowledge base articles (INTERNAL / SHAREPOINT / CONFLUENCE source) |
+| `KbDeflection` | Tracks when a KB article resolved a ticket |
 | `DashboardConfig` | Per-user widget layout stored as JSON |
-| `AppConfig` | Key/value store for admin-configurable settings |
+| `AppConfig` | Key/value store for admin-configurable settings (connector credentials, notification config) |
+| `Notification` | In-app notification rows — userId, title, body, ticketId, read flag |
 
 ### Ticket state machine
 
@@ -507,12 +513,13 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 | Phase | Scope | Status |
 |---|---|---|
 | Phase 1 | Foundation — Docker Compose, Prisma schema, Auth module (local + Entra ID), RBAC | ✅ Complete |
-| Phase 2 | Tickets module — full CRUD, state machine, comments, audit log; web portal UI (dashboard, ticket list, detail, new ticket form) | ✅ Complete |
-| Phase 2 (completion) | Filter + search on ticket list, agent assignment UI, file attachments (MinIO), backend + frontend unit tests | ✅ Complete |
+| Phase 2 | Tickets module — full CRUD, state machine, comments, audit log; web portal UI | ✅ Complete |
+| Phase 2 (completion) | Filter + search, agent assignment UI, file attachments (MinIO), backend + frontend tests | ✅ Complete |
 | Phase 3 | Routing rules engine, SLA policies, breach detection, configurable escalation, admin UI | ✅ Complete |
 | Phase 4a | Knowledge base — internal authoring (markdown), Elasticsearch search, inline ticket suggestions, deflection tracking | ✅ Complete |
 | Phase 4b | External KB connectors — SharePoint and Confluence bidirectional sync, OAuth flows, conflict resolution | ✅ Complete |
-| Phase 5 | Notifications (Teams, email), manager dashboard widgets, Teams bot, email-to-ticket via Microsoft Graph | 🔜 Planned |
+| Phase 5a | Configurable dashboard — drag-and-drop widget reordering, per-user layouts, admin role defaults | ✅ Complete |
+| Phase 5b | Outbound notifications — in-app inbox (bell + badge), SMTP + Microsoft Graph email, 6 event types, admin config | ✅ Complete |
 
 ---
 
