@@ -55,7 +55,7 @@ export class AuthService {
     }
   }
 
-  async generateTokens(user: User): Promise<{ accessToken: string; refreshToken: string }> {
+  async generateTokens(user: User): Promise<{ accessToken: string; refreshToken: string; role: string; userId: string }> {
     const payload = { sub: user.id, email: user.email, role: user.role };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {
@@ -67,7 +67,7 @@ export class AuthService {
         expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES_IN'),
       }),
     ]);
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, role: user.role, userId: user.id };
   }
 
   async refreshTokens(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
