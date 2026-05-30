@@ -31,7 +31,7 @@ export interface S3Config {
   secretAccessKey: string;
   region: string;
   bucket: string;
-  prefix: string;
+  prefix?: string;
   enabled: boolean;
   syncIntervalMinutes: number;
 }
