@@ -26,6 +26,16 @@ export interface ConfluenceConfig {
   syncIntervalMinutes: number;
 }
 
+export interface S3Config {
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  bucket: string;
+  prefix: string;
+  enabled: boolean;
+  syncIntervalMinutes: number;
+}
+
 @Injectable()
 export class ConnectorConfigService {
   constructor(
@@ -61,32 +71,39 @@ export class ConnectorConfigService {
 
   async getConfig(connector: 'sharepoint'): Promise<SharePointConfig | null>;
   async getConfig(connector: 'confluence'): Promise<ConfluenceConfig | null>;
-  async getConfig(connector: 'sharepoint' | 'confluence'): Promise<SharePointConfig | ConfluenceConfig | null> {
+  async getConfig(connector: 's3'): Promise<S3Config | null>;
+  async getConfig(connector: 'sharepoint' | 'confluence' | 's3'): Promise<SharePointConfig | ConfluenceConfig | S3Config | null> {
     const record = await this.prisma.appConfig.findUnique({ where: { key: `connector.${connector}` } });
     if (!record) return null;
     try {
       const parsed = JSON.parse(record.value);
       if (connector === 'sharepoint') return { ...parsed, clientSecret: this.decrypt(parsed.clientSecret) };
+      if (connector === 's3') return { ...parsed, secretAccessKey: this.decrypt(parsed.secretAccessKey) };
       return { ...parsed, apiToken: this.decrypt(parsed.apiToken) };
     } catch {
       throw new Error(`Connector config for ${connector} is corrupt or encrypted with a different key`);
     }
   }
 
-  async getRedactedConfig(connector: 'sharepoint' | 'confluence') {
+  async getRedactedConfig(connector: 'sharepoint' | 'confluence' | 's3') {
     const cfg = await this.getConfig(connector as any);
     if (!cfg) return null;
-    if (connector === 'sharepoint') return { ...(cfg as SharePointConfig), clientSecret: '***' };
+    if (connector === 'sharepoint') return { ...(cfg as unknown as SharePointConfig), clientSecret: '***' };
+    if (connector === 's3') return { ...(cfg as unknown as S3Config), secretAccessKey: '***' };
     return { ...(cfg as unknown as ConfluenceConfig), apiToken: '***' };
   }
 
   async saveConfig(connector: 'sharepoint', config: SharePointConfig): Promise<void>;
   async saveConfig(connector: 'confluence', config: ConfluenceConfig): Promise<void>;
-  async saveConfig(connector: 'sharepoint' | 'confluence', config: SharePointConfig | ConfluenceConfig): Promise<void> {
+  async saveConfig(connector: 's3', config: S3Config): Promise<void>;
+  async saveConfig(connector: 'sharepoint' | 'confluence' | 's3', config: SharePointConfig | ConfluenceConfig | S3Config): Promise<void> {
     let toStore: Record<string, unknown>;
     if (connector === 'sharepoint') {
       const sp = config as SharePointConfig;
       toStore = { ...sp, clientSecret: this.encrypt(sp.clientSecret) };
+    } else if (connector === 's3') {
+      const s3 = config as S3Config;
+      toStore = { ...s3, secretAccessKey: this.encrypt(s3.secretAccessKey) };
     } else {
       const cf = config as ConfluenceConfig;
       toStore = { ...cf, apiToken: this.encrypt(cf.apiToken) };

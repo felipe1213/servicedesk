@@ -26,3 +26,13 @@ export class SaveConfluenceConfigDto {
 export class ExportArticleDto {
   @IsEnum(['SHAREPOINT', 'CONFLUENCE']) connector!: 'SHAREPOINT' | 'CONFLUENCE';
 }
+
+export class SaveS3ConfigDto {
+  @IsString() @IsNotEmpty() accessKeyId!: string;
+  @IsString() @IsNotEmpty() secretAccessKey!: string;
+  @IsString() @IsNotEmpty() region!: string;
+  @IsString() @IsNotEmpty() bucket!: string;
+  @IsString() @IsOptional() prefix?: string;
+  @IsBoolean() enabled!: boolean;
+  @IsNumber() @Min(1) syncIntervalMinutes!: number;
+}
