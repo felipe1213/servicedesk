@@ -218,5 +218,62 @@ describe('S3ConnectorService', () => {
       expect(prisma.kbArticle.findFirst).not.toHaveBeenCalled();
       expect(mockSend).toHaveBeenCalledTimes(1);
     });
+
+    it('fetches the next page when IsTruncated is true', async () => {
+      configService.getConfig.mockResolvedValue(S3_CONFIG);
+      prisma.kbArticle.findFirst.mockResolvedValue(null);
+      prisma.kbArticle.create.mockResolvedValue(MOCK_ARTICLE);
+      mockSend
+        .mockResolvedValueOnce({
+          Contents: [{ Key: 'kb/page1.md', ETag: '"etag1"' }],
+          IsTruncated: true,
+          NextContinuationToken: 'token123',
+        })
+        .mockResolvedValueOnce({ Body: makeBody('# Page 1') })
+        .mockResolvedValueOnce({
+          Contents: [{ Key: 'kb/page2.md', ETag: '"etag2"' }],
+          IsTruncated: false,
+        })
+        .mockResolvedValueOnce({ Body: makeBody('# Page 2') });
+
+      await service.sync();
+
+      expect(mockSend).toHaveBeenCalledTimes(4);
+      expect(prisma.kbArticle.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('reads a .txt file as plain text', async () => {
+      configService.getConfig.mockResolvedValue(S3_CONFIG);
+      prisma.kbArticle.findFirst.mockResolvedValue(null);
+      mockSend
+        .mockResolvedValueOnce({ Contents: [{ Key: 'kb/notes.txt', ETag: '"etag1"' }], IsTruncated: false })
+        .mockResolvedValueOnce({ Body: makeBody('Plain text content') });
+
+      await service.sync();
+
+      expect(prisma.kbArticle.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ body: 'Plain text content' }) }),
+      );
+    });
+
+    it('throws when S3 is not configured', async () => {
+      configService.getConfig.mockResolvedValue(null);
+
+      await expect(service.sync()).rejects.toThrow('S3 not configured');
+    });
+
+    it('derives article title from the S3 object key', async () => {
+      configService.getConfig.mockResolvedValue(S3_CONFIG);
+      prisma.kbArticle.findFirst.mockResolvedValue(null);
+      mockSend
+        .mockResolvedValueOnce({ Contents: [{ Key: 'kb/getting-started.md', ETag: '"etag1"' }], IsTruncated: false })
+        .mockResolvedValueOnce({ Body: makeBody('# Content') });
+
+      await service.sync();
+
+      expect(prisma.kbArticle.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ title: 'Getting Started' }) }),
+      );
+    });
   });
 });
