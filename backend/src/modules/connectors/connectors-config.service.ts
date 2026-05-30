@@ -28,7 +28,7 @@ export interface ConfluenceConfig {
 
 export interface S3Config {
   accessKeyId: string;
-  secretAccessKey: string;
+  secretAccessKey?: string;
   region: string;
   bucket: string;
   prefix?: string;
@@ -103,7 +103,15 @@ export class ConnectorConfigService {
       toStore = { ...sp, clientSecret: this.encrypt(sp.clientSecret) };
     } else if (connector === 's3') {
       const s3 = config as S3Config;
-      toStore = { ...s3, secretAccessKey: this.encrypt(s3.secretAccessKey) };
+      let encryptedSecret: string;
+      if (s3.secretAccessKey) {
+        encryptedSecret = this.encrypt(s3.secretAccessKey);
+      } else {
+        const existing = await this.prisma.appConfig.findUnique({ where: { key: 'connector.s3' } });
+        const parsed = existing ? JSON.parse(existing.value) : null;
+        encryptedSecret = parsed?.secretAccessKey ?? '';
+      }
+      toStore = { ...s3, secretAccessKey: encryptedSecret };
     } else {
       const cf = config as ConfluenceConfig;
       toStore = { ...cf, apiToken: this.encrypt(cf.apiToken) };

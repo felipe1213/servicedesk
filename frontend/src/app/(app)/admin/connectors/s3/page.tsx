@@ -34,12 +34,14 @@ export default function S3ConnectorPage() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [saveMsg, setSaveMsg] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${(session as any)?.accessToken}` };
   }
 
   async function load() {
+    setLoadError('');
     const api = process.env.NEXT_PUBLIC_API_URL;
     const [cfgRes, logsRes] = await Promise.all([
       fetch(`${api}/connectors/s3/config`, { headers: authHeaders() }),
@@ -48,6 +50,8 @@ export default function S3ConnectorPage() {
     if (cfgRes.ok) {
       const cfg = await cfgRes.json();
       if (cfg) setForm({ ...empty, ...cfg, secretAccessKey: '' });
+    } else if (cfgRes.status !== 404) {
+      throw new Error('Failed to load configuration');
     }
     if (logsRes.ok) {
       const allLogs: SyncLog[] = await logsRes.json();
@@ -55,13 +59,15 @@ export default function S3ConnectorPage() {
     }
   }
 
-  useEffect(() => { if (session) load().catch(() => {}); }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (session) load().catch(() => setLoadError('Failed to load configuration. Reload the page.')); }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     setSaving(true); setSaveMsg('');
     try {
+      const payload: Record<string, unknown> = { ...form };
+      if (!payload['secretAccessKey']) delete payload['secretAccessKey'];
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/connectors/s3/config`, {
-        method: 'PUT', headers: authHeaders(), body: JSON.stringify(form),
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload),
       });
       setSaveMsg(res.ok ? 'Saved.' : 'Save failed.');
     } finally { setSaving(false); }
@@ -122,6 +128,12 @@ export default function S3ConnectorPage() {
     <div style={{ maxWidth: 640 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', marginBottom: 24 }}>Amazon S3 Connector</h1>
 
+      {loadError && (
+        <div style={{ marginBottom: 16, padding: '10px 14px', background: '#fee2e2', color: '#dc2626', borderRadius: 6, fontSize: 13 }}>
+          {loadError}
+        </div>
+      )}
+
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 24, marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Credentials</h2>
         {field('Access Key ID', 'accessKeyId')}
@@ -175,7 +187,11 @@ export default function S3ConnectorPage() {
           </div>
         )}
         {syncResult && (
-          <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 6, background: '#dbeafe', color: '#1d4ed8', fontSize: 13 }}>
+          <div style={{
+            marginTop: 12, padding: '8px 12px', borderRadius: 6, fontSize: 13,
+            background: syncResult.startsWith('Done') ? '#dbeafe' : '#fee2e2',
+            color: syncResult.startsWith('Done') ? '#1d4ed8' : '#dc2626',
+          }}>
             {syncResult}
           </div>
         )}

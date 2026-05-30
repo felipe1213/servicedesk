@@ -29,7 +29,7 @@ export class ExportArticleDto {
 
 export class SaveS3ConfigDto {
   @IsString() @IsNotEmpty() accessKeyId!: string;
-  @IsString() @IsNotEmpty() secretAccessKey!: string;
+  @IsString() @IsOptional() secretAccessKey?: string;
   @IsString() @IsNotEmpty() region!: string;
   @IsString() @IsNotEmpty() bucket!: string;
   @IsString() @IsOptional() prefix?: string;

@@ -25,7 +25,7 @@ export class S3ConnectorService {
       region: config.region,
       credentials: {
         accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
+        secretAccessKey: config.secretAccessKey ?? '',
       },
     });
   }
