@@ -40,7 +40,7 @@ describe('NotificationService', () => {
     configService.isEventEnabled.mockResolvedValue(true);
     prisma.user.findUnique.mockResolvedValue({ id: 'agent-1', email: 'agent@test.com' });
 
-    await service.handleTicketAssigned({ ticketId: 'ticket-1', assignedToId: 'agent-1', title: 'Fix it' });
+    await service.handleTicketAssigned({ ticketId: 'ticket-1', assignedToId: 'agent-1', title: 'Fix it', ticketNumber: 1 });
 
     expect(prisma.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -55,7 +55,7 @@ describe('NotificationService', () => {
   it('handleTicketAssigned: does nothing when toggle is disabled', async () => {
     configService.isEventEnabled.mockResolvedValue(false);
 
-    await service.handleTicketAssigned({ ticketId: 'ticket-1', assignedToId: 'agent-1', title: 'Fix it' });
+    await service.handleTicketAssigned({ ticketId: 'ticket-1', assignedToId: 'agent-1', title: 'Fix it', ticketNumber: 1 });
 
     expect(prisma.notification.create).not.toHaveBeenCalled();
     expect(emailService.send).not.toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe('NotificationService', () => {
 
     await service.handleTicketCommented({
       ticketId: 't1', commentId: 'c1', authorId: 'agent-1',
-      title: 'Issue', creatorId: 'user-1', assignedToId: 'user-1',
+      title: 'Issue', creatorId: 'user-1', assignedToId: 'user-1', ticketNumber: 1,
     });
 
     expect(prisma.user.findMany).toHaveBeenCalledWith(
@@ -88,7 +88,7 @@ describe('NotificationService', () => {
     ]);
     prisma.user.findUnique.mockResolvedValue({ id: 'agent-1', email: 'agent@test.com' });
 
-    await service.handleSlaBreached({ ticketId: 't1', assignedToId: 'agent-1', title: 'SLA' });
+    await service.handleSlaBreached({ ticketId: 't1', assignedToId: 'agent-1', title: 'SLA', ticketNumber: 1 });
 
     expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

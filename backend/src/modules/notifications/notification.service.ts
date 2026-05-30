@@ -11,18 +11,21 @@ type TicketCreatedPayload = {
   title: string;
   createdById: string;
   createdBy: { id: string; name: string; email: string };
+  ticketNumber: number;
 };
-type TicketAssignedPayload = { ticketId: string; assignedToId: string; title: string };
+type TicketAssignedPayload = { ticketId: string; assignedToId: string; title: string; ticketNumber: number };
 type TicketCommentedPayload = {
   ticketId: string; commentId: string; authorId: string;
   title: string; creatorId: string; assignedToId: string | null;
+  ticketNumber: number;
 };
 type TicketStatusChangedPayload = {
   ticketId: string; status: string; title: string;
   creatorId: string; assignedToId: string | null;
+  ticketNumber: number;
 };
-type TicketResolvedPayload = { ticketId: string; title: string; creatorId: string };
-type SlaBreachedPayload = { ticketId: string; assignedToId: string | null; title: string };
+type TicketResolvedPayload = { ticketId: string; title: string; creatorId: string; ticketNumber: number };
+type SlaBreachedPayload = { ticketId: string; assignedToId: string | null; title: string; ticketNumber: number };
 
 @Injectable()
 export class NotificationService {
@@ -54,7 +57,7 @@ export class NotificationService {
     try {
       if (!(await this.configService.isEventEnabled('notification.event.ticket_created'))) return;
 
-      const title = `Ticket created: ${event.title}`;
+      const title = `[#${event.ticketNumber}] Ticket created: ${event.title}`;
       const body = `Your ticket '${event.title}' has been received and will be reviewed shortly.`;
       await this.notify(event.createdById, event.createdBy?.email ?? null, title, body, event.id);
     } catch (err) {
@@ -73,7 +76,7 @@ export class NotificationService {
       });
       if (!user) return;
 
-      const title = `Ticket assigned to you: ${event.title}`;
+      const title = `[#${event.ticketNumber}] Ticket assigned to you: ${event.title}`;
       const body = `You have been assigned ticket '${event.title}'.`;
       await this.notify(user.id, user.email, title, body, event.ticketId);
     } catch (err) {
@@ -92,7 +95,7 @@ export class NotificationService {
         select: { id: true, email: true },
       });
 
-      const title = `New comment on: ${event.title}`;
+      const title = `[#${event.ticketNumber}] New comment on: ${event.title}`;
       const body = `A new comment was posted on ticket '${event.title}'.`;
       await Promise.allSettled(users.map((u) => this.notify(u.id, u.email, title, body, event.ticketId)));
     } catch (err) {
@@ -111,7 +114,7 @@ export class NotificationService {
       });
       if (!user) return;
 
-      const title = `Ticket status updated: ${event.title}`;
+      const title = `[#${event.ticketNumber}] Ticket status updated: ${event.title}`;
       const body = `Ticket '${event.title}' status changed to ${event.status.replace(/_/g, ' ')}.`;
       await this.notify(user.id, user.email, title, body, event.ticketId);
     } catch (err) {
@@ -130,7 +133,7 @@ export class NotificationService {
       });
       if (!user) return;
 
-      const title = `Ticket resolved: ${event.title}`;
+      const title = `[#${event.ticketNumber}] Ticket resolved: ${event.title}`;
       const body = `Your ticket '${event.title}' has been resolved.`;
       await this.notify(user.id, user.email, title, body, event.ticketId);
     } catch (err) {
@@ -160,7 +163,7 @@ export class NotificationService {
         if (assignee) recipientMap.set(assignee.id, assignee.email);
       }
 
-      const title = `SLA breached: ${event.title}`;
+      const title = `[#${event.ticketNumber}] SLA breached: ${event.title}`;
       const body = `Ticket '${event.title}' has breached its SLA deadline.`;
       await Promise.allSettled(
         [...recipientMap.entries()].map(([userId, email]) =>

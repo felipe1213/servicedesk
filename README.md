@@ -29,6 +29,7 @@ An enterprise-scale help desk ticketing system built with NestJS and Next.js, in
 - **SLA policies** — admin-configured response and resolution time targets per priority tier, breach detection and escalation
 - **Routing rules engine** — admin-configured rules match tickets by category, keyword, or channel and auto-assign to a team or agent
 - **Knowledge base** — internal article authoring, SharePoint and Confluence connectors, Elasticsearch full-text search, KB deflection tracking
+- **Inbound email** — shared mailbox polling (IMAP or Microsoft Graph) converts incoming emails into tickets; replies thread back to the original ticket via `[#N]` subject tag; admin-configurable access control (anyone, approved domains, or specific users)
 - **Outbound notifications** — admin-controlled in-app inbox (bell with unread badge) and email delivery (SMTP or Microsoft Graph) triggered by ticket lifecycle events and SLA breaches
 - **Configurable dashboard** — live ticket overview with drag-and-drop widget reordering and visibility toggles; per-user layout with admin-settable role defaults
 - **Auth** — Entra ID SSO (Azure AD) and local username/password; JWT access + rotating refresh tokens
@@ -77,6 +78,7 @@ The frontend proxies all backend calls through a Next.js rewrite (`/api/backend/
 | Teams Integration | Azure Bot Framework SDK |
 | Email (SMTP) | Nodemailer |
 | Email (Graph) | Microsoft Graph API (client-credentials OAuth) |
+| Inbound Email (IMAP) | imapflow + mailparser |
 | Auth (SSO) | MSAL + OAuth 2.0 (Entra ID / Azure AD) |
 | Auth (local) | bcrypt + JWT (access + refresh) |
 | Containerisation | Docker + Docker Compose |
@@ -486,7 +488,7 @@ docker compose down -v                      # Stop and wipe all data
 |---|---|
 | `User` | Accounts — local or Entra ID, role, optional team membership |
 | `Team` | Groups of agents |
-| `Ticket` | Core entity — title, description, status, priority, source channel, SLA deadlines |
+| `Ticket` | Core entity — title, description, status, priority, source channel, SLA deadlines, auto-increment ticket number |
 | `Comment` | Thread on a ticket; `isInternal` separates agent notes from end-user messages |
 | `AuditLog` | Immutable record of every ticket state change |
 | `Attachment` | File metadata; binary stored in MinIO |
@@ -520,6 +522,7 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 | Phase 4b | External KB connectors — SharePoint and Confluence bidirectional sync, OAuth flows, conflict resolution | ✅ Complete |
 | Phase 5a | Configurable dashboard — drag-and-drop widget reordering, per-user layouts, admin role defaults | ✅ Complete |
 | Phase 5b | Outbound notifications — in-app inbox (bell + badge), SMTP + Microsoft Graph email, 6 event types, admin config | ✅ Complete |
+| Phase 5c | Inbound email — IMAP + Microsoft Graph polling, email-to-ticket + reply threading, access control, attachments | ✅ Complete |
 
 ---
 

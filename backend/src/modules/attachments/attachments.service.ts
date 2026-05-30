@@ -63,6 +63,21 @@ export class AttachmentsService {
     );
   }
 
+  // Internal helper — callers catch and log attachment errors; no NestJS exception wrapping needed.
+  async uploadBuffer(
+    ticketId: string,
+    userId: string,
+    filename: string,
+    mimeType: string,
+    buffer: Buffer,
+  ): Promise<void> {
+    const key = `tickets/${ticketId}/${crypto.randomUUID()}-${filename}`;
+    await this.minio.putObject(this.bucket, key, buffer, buffer.length, { 'Content-Type': mimeType });
+    await this.prisma.attachment.create({
+      data: { ticketId, filename, mimeType, storagePath: key, uploadedById: userId },
+    });
+  }
+
   getPresignedUrl(key: string): Promise<string> {
     return this.minio.presignedGetObject(this.bucket, key, PRESIGNED_EXPIRY_SECONDS);
   }

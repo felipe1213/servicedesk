@@ -122,6 +122,7 @@ export class SlaService {
           ticketId: ticket.id,
           assignedToId: effectiveAssignedToId,
           title: ticket.title,
+          ticketNumber: ticket.ticketNumber,
         });
       } catch (err) {
         this.logger.error(`Failed to process breach for ticket ${ticket.id}`, err);

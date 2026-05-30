@@ -124,6 +124,7 @@ model Ticket {
   slaBreached        Boolean      @default(false)
   responseDeadline   DateTime?
   resolutionDeadline DateTime?
+  ticketNumber       Int          @default(autoincrement()) @unique
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 

@@ -15,6 +15,7 @@ import { KbModule } from './modules/kb/kb.module';
 import { ConnectorsModule } from './modules/connectors/connectors.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { InboundEmailModule } from './modules/inbound-email/inbound-email.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 
@@ -35,6 +36,7 @@ import { RolesGuard } from './modules/auth/guards/roles.guard';
     ConnectorsModule,
     DashboardModule,
     NotificationsModule,
+    InboundEmailModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -4,7 +4,7 @@ import { Role } from '@prisma/client';
 import { AttachmentsService } from './attachments.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { MINIO_CLIENT, PRESIGNED_EXPIRY_SECONDS } from './attachments.constants';
+import { MINIO_BUCKET_DEFAULT, MINIO_CLIENT, PRESIGNED_EXPIRY_SECONDS } from './attachments.constants';
 
 const mockPrisma = {
   ticket: { findUnique: jest.fn() },
@@ -120,6 +120,32 @@ describe('AttachmentsService', () => {
         PRESIGNED_EXPIRY_SECONDS,
       );
       expect(result).toBe('https://minio/signed');
+    });
+  });
+
+  describe('uploadBuffer', () => {
+    it('stores file in MinIO and creates Attachment record', async () => {
+      mockMinio.putObject.mockResolvedValue(undefined);
+      mockPrisma.attachment.create.mockResolvedValue({ id: 'att-1' });
+
+      const buf = Buffer.from('hello');
+      await service.uploadBuffer('ticket-1', 'user-1', 'test.txt', 'text/plain', buf);
+
+      expect(mockMinio.putObject).toHaveBeenCalledWith(
+        MINIO_BUCKET_DEFAULT,
+        expect.stringContaining('tickets/ticket-1/'),
+        buf,
+        5,
+        { 'Content-Type': 'text/plain' },
+      );
+      expect(mockPrisma.attachment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          ticketId: 'ticket-1',
+          uploadedById: 'user-1',
+          filename: 'test.txt',
+          mimeType: 'text/plain',
+        }),
+      });
     });
   });
 });

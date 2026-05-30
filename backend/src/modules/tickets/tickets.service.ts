@@ -133,6 +133,7 @@ export class TicketsService {
           ticketId: id,
           title: updated.title,
           creatorId: ticket.createdById,
+          ticketNumber: updated.ticketNumber,
         });
       } else {
         this.eventEmitter.emit('ticket.status_changed', {
@@ -141,6 +142,7 @@ export class TicketsService {
           title: updated.title,
           creatorId: ticket.createdById,
           assignedToId: updated.assignedToId,
+          ticketNumber: updated.ticketNumber,
         });
       }
     }
@@ -158,6 +160,7 @@ export class TicketsService {
         ticketId: id,
         assignedToId: dto.assignedToId,
         title: updated.title,
+        ticketNumber: updated.ticketNumber,
       });
     }
 
@@ -184,6 +187,7 @@ export class TicketsService {
         title: ticket.title,
         creatorId: ticket.createdById,
         assignedToId: ticket.assignedToId,
+        ticketNumber: ticket.ticketNumber,
       });
     }
 
