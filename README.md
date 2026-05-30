@@ -554,7 +554,7 @@ Every transition is written to `AuditLog` with the actor, old value, and new val
 | Phase 5a | Configurable dashboard — drag-and-drop widget reordering, per-user layouts, admin role defaults | ✅ Complete |
 | Phase 5b | Outbound notifications — in-app inbox (bell + badge), SMTP + Microsoft Graph email, 6 event types, admin config | ✅ Complete |
 | Phase 5c | Inbound email — IMAP + Microsoft Graph polling, email-to-ticket + reply threading, access control, attachments | ✅ Complete |
-| S3 Connector | Amazon S3 read-only KB connector — .md/.html/.txt/.pdf sync, ETag change detection, scheduled polling | 🔄 In Progress |
+| S3 Connector | Amazon S3 read-only KB connector — .md/.html/.txt/.pdf sync, ETag change detection, scheduled polling | ✅ Complete |
 | User Management | Admin panel — user list with search, inline role editing | ✅ Complete |
 
 ---
