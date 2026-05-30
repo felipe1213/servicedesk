@@ -13,6 +13,7 @@ interface ConnectorStatus {
 const CARDS = [
   { label: 'SharePoint', connector: 'sharepoint' as const, href: '/admin/connectors/sharepoint' },
   { label: 'Confluence', connector: 'confluence' as const, href: '/admin/connectors/confluence' },
+  { label: 'Amazon S3', connector: 's3' as const, href: '/admin/connectors/s3' },
 ];
 
 export default function ConnectorsPage() {
@@ -25,15 +26,17 @@ export default function ConnectorsPage() {
 
     async function load() {
       const auth = { Authorization: `Bearer ${(session as any)?.accessToken}` };
-      const [spRes, cfRes, conflictsRes, logsRes] = await Promise.all([
+      const [spRes, cfRes, s3Res, conflictsRes, logsRes] = await Promise.all([
         fetch(`${api}/connectors/sharepoint/config`, { headers: auth }),
         fetch(`${api}/connectors/confluence/config`, { headers: auth }),
+        fetch(`${api}/connectors/s3/config`, { headers: auth }),
         fetch(`${api}/connectors/conflicts`, { headers: auth }),
         fetch(`${api}/connectors/logs`, { headers: auth }),
       ]);
       const conflicts: any[] = conflictsRes.ok ? await conflictsRes.json() : [];
       const spConfig = spRes.ok ? await spRes.json() : null;
       const cfConfig = cfRes.ok ? await cfRes.json() : null;
+      const s3Config = s3Res.ok ? await s3Res.json() : null;
       const allLogs: any[] = logsRes.ok ? await logsRes.json() : [];
 
       const lastSync = (connector: string) => {
@@ -44,6 +47,7 @@ export default function ConnectorsPage() {
       setStatuses({
         sharepoint: { enabled: spConfig?.enabled ?? false, conflicts: conflicts.filter((c: any) => c.source === 'SHAREPOINT').length, lastSyncedAt: lastSync('SHAREPOINT') },
         confluence: { enabled: cfConfig?.enabled ?? false, conflicts: conflicts.filter((c: any) => c.source === 'CONFLUENCE').length, lastSyncedAt: lastSync('CONFLUENCE') },
+        s3: { enabled: s3Config?.enabled ?? false, conflicts: 0, lastSyncedAt: lastSync('S3') },
       });
     }
     load().catch(() => {});
@@ -52,9 +56,9 @@ export default function ConnectorsPage() {
   return (
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>External Connectors</h1>
-      <p style={{ color: '#64748b', marginBottom: 32 }}>Sync knowledge base articles with SharePoint and Confluence.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 640 }}>
-        {CARDS.map(card => {
+      <p style={{ color: '#64748b', marginBottom: 32 }}>Sync knowledge base articles with SharePoint, Confluence, and Amazon S3.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, maxWidth: 960 }}>
+        {CARDS.map((card) => {
           const status = statuses[card.connector];
           return (
             <Link key={card.connector} href={card.href} style={{ textDecoration: 'none' }}>
