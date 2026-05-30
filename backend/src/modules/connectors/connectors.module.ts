@@ -4,6 +4,7 @@ import { ConnectorConfigService } from './connectors-config.service';
 import { ContentConverterService } from './content-converter.service';
 import { SharePointService } from './sharepoint.service';
 import { ConfluenceService } from './confluence.service';
+import { S3ConnectorService } from './s3.service';
 import { ConnectorsService } from './connectors.service';
 import { SyncSchedulerService } from './sync-scheduler.service';
 import { ConnectorsController } from './connectors.controller';
@@ -16,6 +17,7 @@ import { ConnectorsController } from './connectors.controller';
     ContentConverterService,
     SharePointService,
     ConfluenceService,
+    S3ConnectorService,
     ConnectorsService,
     SyncSchedulerService,
   ],

@@ -5,8 +5,14 @@ import { ConnectorConfigService } from './connectors-config.service';
 import { ConnectorsService } from './connectors.service';
 import { SharePointService } from './sharepoint.service';
 import { ConfluenceService } from './confluence.service';
+import { S3ConnectorService } from './s3.service';
 import { SyncSchedulerService } from './sync-scheduler.service';
-import { SaveSharePointConfigDto, SaveConfluenceConfigDto, ExportArticleDto } from './dto/connector-config.dto';
+import {
+  SaveSharePointConfigDto,
+  SaveConfluenceConfigDto,
+  SaveS3ConfigDto,
+  ExportArticleDto,
+} from './dto/connector-config.dto';
 import { ResolveConflictDto } from './dto/resolve-conflict.dto';
 
 @Controller('connectors')
@@ -17,6 +23,7 @@ export class ConnectorsController {
     private readonly connectorsService: ConnectorsService,
     private readonly sharepoint: SharePointService,
     private readonly confluence: ConfluenceService,
+    private readonly s3: S3ConnectorService,
     private readonly scheduler: SyncSchedulerService,
   ) {}
 
@@ -51,6 +58,22 @@ export class ConnectorsController {
 
   @Post('confluence/sync')
   syncConfluence() { return this.scheduler.runConfluence(); }
+
+  @Get('s3/config')
+  getS3Config() { return this.configService.getRedactedConfig('s3'); }
+
+  @Put('s3/config')
+  async saveS3Config(@Body() dto: SaveS3ConfigDto) {
+    await this.configService.saveConfig('s3', dto);
+    await this.scheduler.registerS3();
+    return { ok: true };
+  }
+
+  @Post('s3/test')
+  testS3() { return this.s3.testConnection(); }
+
+  @Post('s3/sync')
+  syncS3() { return this.scheduler.runS3(); }
 
   @Get('conflicts')
   listConflicts() { return this.connectorsService.listConflicts(); }
